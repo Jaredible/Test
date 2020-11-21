@@ -232,7 +232,7 @@ int main(int argc, char **argv) {
 			//If child want to terminate, skips the current iteration of the loop and continues with the next iteration
 			if (master_message.flag == 0)
 			{
-				log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n", programName, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
+				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 
 				//Remove the process out of the queue
 				QueueNode current;
@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
 			//If not, simply add the current process to the tracking queue and point the pointer to the next queue element
 			if (master_message.isRequest == true)
 			{
-				log("%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n", programName, master_message.index, master_message.childPid);
+				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 
 				//Execute the Banker Algorithm
 				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
 			//Is the process releasing resources?
 			if (master_message.isRelease)
 			{
-				log("%s: process with PID (%d) [%d] is RELEASING allocated resources.\n", programName, master_message.index, master_message.childPid);
+				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 			}
 
 			//Increase iterration
