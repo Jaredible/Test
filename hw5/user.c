@@ -88,71 +88,43 @@ int main(int argc, char *argv[])
 		bool is_terminate = false;
 		bool is_releasing = false;
 		int choice;
-		if (!is_resource_once || !is_ran_duration)
-		{
-			choice = rand() % 2 + 0;
-		}
-		else
-		{
-			choice = rand() % 3 + 0;
-		}
+		if (!is_resource_once || !is_ran_duration) choice = rand() % 2 + 0;
+		else choice = rand() % 3 + 0;
 
-		if (choice == 0)
-		{
+		if (choice == 0) {
 			is_resource_once = true;
 
-			if (!is_requesting)
-			{
-				for (i = 0; i < RESOURCES_MAX; i++)
-				{
+			if (!is_requesting) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
 					pcbt_shmptr[exe_index].request[i] = rand() % (pcbt_shmptr[exe_index].maximum[i] - pcbt_shmptr[exe_index].allocation[i] + 1);
 				}
 				is_requesting = true;
 			}
 		}
-		else if (choice == 1)
-		{
-			if (is_acquire)
-			{
-				for (i = 0; i < RESOURCES_MAX; i++)
-				{
+		else if (choice == 1) {
+			if (is_acquire) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
 					pcbt_shmptr[exe_index].release[i] = pcbt_shmptr[exe_index].allocation[i];
 				}
 				is_releasing = true;
 			}
 		}
-		else if (choice == 2)
-		{
+		else if (choice == 2) {
 			is_terminate = true;
 		}
 
-		//Send a message to master that I got the signal and master should invoke an action base on my "choice"
 		user_message.type = 1;
 		user_message.terminate = is_terminate ? 0 : 1;
 		user_message.request = is_requesting ? true : false;
 		user_message.release = is_releasing ? true : false;
 		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
 
-		//--------------------------------------------------
-		//Determine sleep again or end the current process
-		//If sleep again, check if process can proceed the request OR release already allocated resources
-		if (is_terminate)
-		{
-			break;
-		}
-		else
-		{
-			/* Update resources by either: 
-			[1] If it requesting and it is SAFE, increment allocation vector. 
-			[2] If it requesting and it is UNSAFE, do nothing.
-			[3] If it releasing, decrement allocation vector base on current allocation vector */
-			if (is_requesting)
-			{
-				//Waiting for master signal to determine if it safe to proceed the request
+		if (is_terminate) break;
+		else {
+			if (is_requesting) {
 				msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
-				if (user_message.safe == true)
-				{
+				if (user_message.safe == true) {
 					for (i = 0; i < RESOURCES_MAX; i++)
 					{
 						pcbt_shmptr[exe_index].allocation[i] += pcbt_shmptr[exe_index].request[i];
@@ -163,17 +135,15 @@ int main(int argc, char *argv[])
 				}
 			}
 
-			if (is_releasing)
-			{
-				for (i = 0; i < RESOURCES_MAX; i++)
-				{
+			if (is_releasing) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
 					pcbt_shmptr[exe_index].allocation[i] -= pcbt_shmptr[exe_index].release[i];
 					pcbt_shmptr[exe_index].release[i] = 0;
 				}
 				is_acquire = false;
 			}
 		}
-	} //END OF: Infinite while loop #1
+	}
 
 	cleanUp();
 	exit(exe_index);
