@@ -50,7 +50,7 @@ void semaRelease(int);
 void advanceClock();
 
 void initResource(ResourceDescriptor*);
-void displayResource(Data);
+void displayResource(ResourceDescriptor);
 void updateResource(ResourceDescriptor*, PCB*);
 
 void initSystem();
