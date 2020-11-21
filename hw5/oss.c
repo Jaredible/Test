@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
 		if (child_pid > 0)
 		{
 			int return_index = WEXITSTATUS(child_status);
-			pids[return_index] = -1;
+			pids[return_index] = 0;
 		}
 
 		//--------------------------------------------------
@@ -902,6 +902,8 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 }
 
 void initIPC() {
+	memset(pids, 0, sizeof(pids));
+
 	//--------------------------------------------------
 	/* =====Initialize message queue===== */
 	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
