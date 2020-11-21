@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 					queue_push(queue, spid);
 
 					//Display creation time
-					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n");
+					log("%s: [%d.%d] p%d created\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, spid);
 				}
 			}
 		}
