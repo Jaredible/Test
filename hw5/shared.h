@@ -39,7 +39,9 @@ typedef struct {
 	long type;
 	pid_t pid;
 	int spid;
-	int action;
+	bool terminate;
+	bool request;
+	bool release;
 	bool safe;
 	char text[BUFFER_LENGTH];
 } Message;

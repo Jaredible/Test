@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
 
 			incShmclock();
 
-			if (master_message.action == TERMINATE) {
+			if (master_message.terminate == TERMINATE) {
 				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
 
 				QueueNode current;
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
 				continue;
 			}
 
-			if (master_message.action == REQUEST) {
+			if (master_message.request) {
 				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
 
 				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
 
 			incShmclock();
 
-			if (master_message.action == RELEASE) {
+			if (master_message.release) {
 				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
 			}
 

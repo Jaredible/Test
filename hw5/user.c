@@ -128,10 +128,9 @@ int main(int argc, char *argv[])
 
 		//Send a message to master that I got the signal and master should invoke an action base on my "choice"
 		user_message.type = 1;
-		int action = TERMINATE;
-		if (is_requesting) action = REQUEST;
-		else if (is_releasing) action = RELEASE;
-		user_message.action = action;
+		user_message.terminate = is_terminate ? 0 : 1;
+		user_message.request = is_requesting ? true : false;
+		user_message.release = is_releasing ? true : false;
 		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
 
 		//--------------------------------------------------
