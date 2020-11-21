@@ -271,7 +271,7 @@ void signalHandler(int signum)
 void finalize()
 {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
-	kill(0, SIGUSR1);
+	kill(0, SIGTERM);
 	pid_t p = 0;
 	while (p >= 0)
 	{
