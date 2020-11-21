@@ -97,7 +97,7 @@ void spawnProcess(int spid) {
 }
 
 void trySpawnProcess() {
-	if (nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
 		nextSpawn.ns = 0;
 		int spid = findAvailablePID();
 		if (spid >= 0) spawnProcess(spid);
@@ -168,11 +168,6 @@ void simulate() {
 			pids[spid] = 0;
 			activeCount--;
 			exitCount++;
-		}
-
-		if (spawnCount >= PROCESSES_TOTAL) {
-			timer(0);
-			signalHandler(0);
 		}
 	}
 }
