@@ -90,15 +90,14 @@ bool verbose = false;
 
 int main(int argc, char **argv) {
 	init(argc, argv);
-	
+
 	srand(time(NULL) ^ getpid());
 
-	bool ok = false;
+	bool ok = true;
 
 	while (true) {
 		int c = getopt(argc, argv, "hv");
 		if (c == -1) break;
-
 		switch (c) {
 			case 'h':
 				usage(EXIT_SUCCESS);
@@ -382,7 +381,7 @@ int main(int argc, char **argv) {
 		}
 	} //END OF: infinite while loop #1
 
-	return EXIT_SUCCESS;
+	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 /* ====================================================================================================
