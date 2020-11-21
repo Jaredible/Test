@@ -79,7 +79,6 @@ void timer(int);
 void initIPC();
 void freeIPC();
 void finalize();
-void cleanup();
 void log(char*, ...);
 int findAvailablePID();
 
@@ -283,7 +282,7 @@ void signalHandler(int signum)
 	fprintf(stderr, "System time: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
 	fprintf(stderr, "Total processes executed: %d\n", fork_number);
 
-	cleanup();
+	freeIPC();
 
 	exit(EXIT_SUCCESS);
 }
@@ -733,7 +732,7 @@ void crash(char *msg) {
 	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
 	perror(buf);
 	
-	cleanup();
+	freeIPC();
 	
 	exit(EXIT_FAILURE);
 }
@@ -747,7 +746,7 @@ void error(char *fmt, ...) {
 	
 	fprintf(stderr, "%s: %s\n", programName, buf);
 	
-	cleanup();
+	freeIPC();
 }
 
 void usage(int status) {
@@ -764,9 +763,6 @@ void init(int argc, char **argv) {
 
 	setvbuf(stdout, NULL, _IONBF, 0);
 	setvbuf(stderr, NULL, _IONBF, 0);
-}
-
-void cleanup() {
 }
 
 void log(char *fmt, ...) {
