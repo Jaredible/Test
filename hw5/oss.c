@@ -28,7 +28,6 @@
 #define log _log
 
 /* Static GLOBAL variable (misc) */
-static FILE *fpw = NULL;
 static char *programName;
 static key_t key;
 static Queue *queue;
@@ -63,7 +62,7 @@ void semaRelease(int sem_index);
 void incShmclock();
 
 void initResource(Data *data);
-void displayResource(FILE *fpw, Data data);
+void displayResource(Data data);
 void updateResource(Data *data, PCB *pcb);
 
 void initPCBT(PCB *pcbt);
@@ -71,9 +70,9 @@ void initPCB(PCB *pcb, int index, pid_t pid, Data data);
 
 void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count);
 void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count);
-void displayVector(FILE *fpw, int *line_count, char *v_name, char *l_name, int vector[RESOURCES_MAX]);
-void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count);
-bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index);
+void displayVector(char *v_name, char *l_name, int vector[RESOURCES_MAX]);
+void displayMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count);
+bool bankerAlgorithm(bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index);
 
 void init(int, char**);
 void error(char*, ...);
@@ -124,12 +123,6 @@ int main(int argc, char **argv) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
-	fpw = fopen(PATH_LOG, "w");
-	if(fpw == NULL) {
-		fprintf(stderr, "%s ERROR: unable to write the output file.\n", programName);
-		exit(EXIT_FAILURE);
-	}
-
 	initIPC();
 
 	shmclock_shmptr->s = 0;
@@ -145,7 +138,7 @@ int main(int argc, char **argv) {
 	//Set up queue
 	queue = queue_create();
 	initResource(&data);
-	displayResource(fpw, data);
+	displayResource(data);
 
 	//--------------------------------------------------
 	/* =====Signal Handling===== */
@@ -284,7 +277,7 @@ int main(int argc, char **argv) {
 				log("%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n");
 
 				//Execute the Banker Algorithm
-				bool isSafe = bankerAlgorithm(fpw, 0, verbose, &data, pcbt_shmptr, queue, c_index);
+				bool isSafe = bankerAlgorithm(0, verbose, &data, pcbt_shmptr, queue, c_index);
 
 				//Send a message to child process whether if it safe to proceed the request OR not
 				master_message.mtype = pcbt_shmptr[c_index].pid;
@@ -336,8 +329,7 @@ int main(int argc, char **argv) {
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-void registerSignalHandlers()
-{
+void registerSignalHandlers() {
 	timer(TIMEOUT);
 
 	struct sigaction sa1;
@@ -371,13 +363,6 @@ void masterHandler(int signum)
 	fprintf(stderr, "- Final simulation time of this execution: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
 
 	cleanUp();
-
-	//Final check for closing log file
-	if (fpw != NULL)
-	{
-		fclose(fpw);
-		fpw = NULL;
-	}
 
 	exit(EXIT_SUCCESS);
 }
@@ -516,7 +501,7 @@ void initResource(Data *data)
 	data->shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
 }
 
-void displayResource(FILE *fpw, Data data)
+void displayResource(Data data)
 {
 	log("===Total Resource===\n<");
 	int i;
@@ -532,7 +517,6 @@ void displayResource(FILE *fpw, Data data)
 	log(">\n\n");
 
 	log("Sharable Resources: %d\n", data.shared);
-	fflush(fpw);
 }
 
 void initPCBT(PCB *pcbt)
@@ -599,7 +583,7 @@ void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOU
 	}
 }
 
-void displayVector(FILE *fpw, int *line_count, char *v_name, char *l_name, int vector[RESOURCES_MAX])
+void displayVector(char *v_name, char *l_name, int vector[RESOURCES_MAX])
 {
 	log("===%s Resource===\n%3s :  <", v_name, l_name);
 
@@ -616,7 +600,7 @@ void displayVector(FILE *fpw, int *line_count, char *v_name, char *l_name, int v
 	log(">\n");
 }
 
-void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count)
+void displayMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count)
 {
 	QueueNode next;
 	next.next = queue->front;
@@ -642,7 +626,7 @@ void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int m
 	}
 }
 
-bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index) {
+bool bankerAlgorithm(bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
 	//=====Check for null queue=====
@@ -702,11 +686,11 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 	//Display information
 	if (verbose)
 	{
-		displayMatrix(fpw, line_count, "Maximum", queue, maxm, count);
-		displayMatrix(fpw, line_count, "Allocation", queue, allot, count);
+		displayMatrix("Maximum", queue, maxm, count);
+		displayMatrix("Allocation", queue, allot, count);
 		char str[BUFFER_LENGTH];
 		sprintf(str, "P%2d", c_index);
-		displayVector(fpw, line_count, "Request", str, req);
+		displayVector("Request", str, req);
 	}
 
 	//=====Finding SAFE Sequence=====
@@ -732,8 +716,8 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 			//Display information
 			if (verbose)
 			{
-				displayVector(fpw, line_count, "Available", "A  ", avail);
-				displayMatrix(fpw, line_count, "Need", queue, need, count);
+				displayVector("Available", "A  ", avail);
+				displayMatrix("Need", queue, need, count);
 			}
 			return false;
 		}
@@ -751,8 +735,8 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 			//Display information
 			if (verbose)
 			{
-				displayVector(fpw, line_count, "Available", "A  ", avail);
-				displayMatrix(fpw, line_count, "Need", queue, need, count);
+				displayVector("Available", "A  ", avail);
+				displayMatrix("Need", queue, need, count);
 			}
 			return false;
 		}
@@ -809,8 +793,8 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 	//Display information
 	if (verbose)
 	{
-		displayVector(fpw, line_count, "Available", "A  ", avail);
-		displayMatrix(fpw, line_count, "Need", queue, need, count);
+		displayVector("Available", "A  ", avail);
+		displayMatrix("Need", queue, need, count);
 	}
 
 	//Map the safe sequence with the queue sequence
@@ -964,6 +948,9 @@ void cleanup() {
 }
 
 void log(char *fmt, ...) {
+	FILE *fp = fopen(PATH_LOG, "a+");
+	if(fp == NULL) crash("fopen");
+
 	char buf[BUFFER_LENGTH];
 	va_list args;
 	va_start(args, fmt);
@@ -971,7 +958,9 @@ void log(char *fmt, ...) {
 	va_end(args);
 
 	fprintf(stderr, buf);
-	fprintf(fpw, buf);
+	fprintf(fp, buf);
+
+	if (fclose(fp) == EOF) crash("fclose");
 }
 
 int findAvailablePID() {

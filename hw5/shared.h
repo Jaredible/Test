@@ -20,9 +20,9 @@
 #define PERMS (S_IRUSR | S_IWUSR)
 
 #define PATH_LOG "./output.log"
-#define TIMEOUT 1
+#define TIMEOUT 5
 #define PROCESSES_MAX 18
-#define PROCESSES_TOTAL 100
+#define PROCESSES_TOTAL 40
 #define RESOURCES_MAX 20
 #define SHARED_RESOURCES_MIN (int) (RESOURCES_MAX * 0.15)
 #define SHARED_RESOURCES_MAX (int) (RESOURCES_MAX * 0.25)
