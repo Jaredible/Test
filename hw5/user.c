@@ -185,8 +185,6 @@ void crash(char *msg) {
 	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
 	perror(buf);
 	
-	freeIPC();
-	
 	exit(EXIT_FAILURE);
 }
 
