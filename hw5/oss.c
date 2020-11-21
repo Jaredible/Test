@@ -52,27 +52,27 @@ static pid_t pid = -1;
 /* -------------------------------------------------- */
 
 /* Prototype Function */
-void masterHandler(int signum);
-void exitHandler(int signum);
+void masterHandler(int);
+void exitHandler(int);
 void finalize();
-void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type);
+void discardShm(int, void*, char*, char*, char*);
 void cleanUp();
-void semaLock(int sem_index);
-void semaRelease(int sem_index);
+void semaLock(int);
+void semaRelease(int);
 void incShmclock();
 
-void initResource(Data *data);
-void displayResource(Data data);
-void updateResource(Data *data, PCB *pcb);
+void initResource(Data*);
+void displayResource(Data);
+void updateResource(Data*, PCB*);
 
-void initPCBT(PCB *pcbt);
-void initPCB(PCB *pcb, int index, pid_t pid, Data data);
+void initPCBT(PCB*);
+void initPCB(PCB*, int, pid_t, Data);
 
-void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count);
-void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count);
-void displayVector(char *v_name, char *l_name, int vector[RESOURCES_MAX]);
-void displayMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count);
-bool bankerAlgorithm(bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index);
+void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
+void calculateNeedMatrix(Data*, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
+void displayVector(char*, char*, int vector[RESOURCES_MAX]);
+void displayMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
+bool bankerAlgorithm(Data*, PCB*, Queue*, int);
 
 void init(int, char**);
 void error(char*, ...);
@@ -277,7 +277,7 @@ int main(int argc, char **argv) {
 				log("%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n");
 
 				//Execute the Banker Algorithm
-				bool isSafe = bankerAlgorithm(verbose, &data, pcbt_shmptr, queue, c_index);
+				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
 
 				//Send a message to child process whether if it safe to proceed the request OR not
 				master_message.mtype = pcbt_shmptr[c_index].pid;
@@ -626,7 +626,7 @@ void displayMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int 
 	}
 }
 
-bool bankerAlgorithm(bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index) {
+bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
 	//=====Check for null queue=====
