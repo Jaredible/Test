@@ -58,7 +58,7 @@ void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MA
 void calculateNeedMatrix(Data*, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void printVector(char*, char*, int vector[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
-bool isSafe(Data*, PCB*, Queue*, int);
+bool safe(Data*, PCB*, Queue*, int);
 
 void init(int, char**);
 void error(char*, ...);
@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
 			if (message.request) {
 				log("%s: [%d.%d] p%d requesting\n", programName, system->clock.s, system->clock.ns, message.spid);
 
-				bool isSafe = isSafe(&data, system->ptable, queue, c_index);
+				bool isSafe = safe(&data, system->ptable, queue, c_index);
 
 				message.type = system->ptable[c_index].pid;
 				message.safe = (isSafe) ? true : false;
@@ -452,7 +452,7 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 	}
 }
 
-bool isSafe(Data *data, PCB *pcbt, Queue *queue, int c_index) {
+bool safe(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
 	//=====Check for null queue=====
