@@ -3,6 +3,7 @@
  * Jared Diehl (jmddnb@umsystem.edu)
  */
 
+#include <libgen.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -97,7 +98,7 @@ void test() {
 		incShmclock();
 
 		if (message.terminate == TERMINATE) {
-			log("%s: [%d.%d] p%d terminating\n", programName, system->clock.s, system->clock.ns, message.spid);
+			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			QueueNode *current = queue->front;
 			while (current != NULL) {
@@ -122,7 +123,7 @@ void test() {
 		}
 
 		if (message.request) {
-			log("%s: [%d.%d] p%d requesting\n", programName, system->clock.s, system->clock.ns, message.spid);
+			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			bool isSafe = safe(&data, system->ptable, queue, c_index);
 
@@ -134,7 +135,7 @@ void test() {
 		incShmclock();
 
 		if (message.release) {
-			log("%s: [%d.%d] p%d releasing\n", programName, system->clock.s, system->clock.ns, message.spid);
+			log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		}
 
 		j++;
@@ -223,7 +224,7 @@ int main(int argc, char **argv) {
 				spawnCount++;
 				initPCB(&system->ptable[spid], spid, pid, data);
 				queue_push(queue, spid);
-				log("%s: [%d.%d] p%d created\n", programName, system->clock.s, system->clock.ns, spid);
+				log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
 			}
 		}
 
