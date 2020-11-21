@@ -57,7 +57,7 @@ void queue_remove(Queue *queue, int index) {
 	while (!queue_empty(queue))
 		queue_pop(queue);
 	while (!queue_empty(temp)) {
-		queue_push(queue, index);
+		queue_push(queue, temp->front->index);
 		queue_pop(temp);
 	}
 	free(temp);
