@@ -279,15 +279,14 @@ void semaRelease(const int index) {
 
 void advanceClock() {
 	semaLock(0);
-	int r_nano = rand() % 1000000 + 1;
 
-	nextSpawn.ns += r_nano;
-	system->clock.ns += r_nano;
+	int rns = rand() % (1 * 1000000) + 1;
+	nextSpawn.ns += rns;
+	system->clock.ns += rns;
 
-	if (system->clock.ns >= 1000000000)
-	{
+	while (system->clock.ns >= (1000 * 1000000)) {
 		system->clock.s++;
-		system->clock.ns = 1000000000 - system->clock.ns;
+		system->clock.ns -= (1000 * 1000000);
 	}
 
 	semaRelease(0);
