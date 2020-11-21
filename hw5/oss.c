@@ -77,75 +77,75 @@ bool verbose = false;
 pid_t pids[PROCESSES_MAX];
 
 void test() {
-	QueueNode next;
-		Queue *trackingQueue = queue_create();
+	QueueNode *next;
+	Queue *temp = queue_create();
 
-		int current_iteration = 0;
-		next.next = queue->front;
-		while (next.next != NULL) {
-			incShmclock();
+	int current_iteration = 0;
+	next = queue->front;
+	while (next != NULL) {
+		incShmclock();
 
-			int c_index = next.next->index;
-			message.type = system->ptable[c_index].pid;
-			message.spid = c_index;
-			message.pid = system->ptable[c_index].pid;
-			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
-			msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
+		int c_index = next->index;
+		message.type = system->ptable[c_index].pid;
+		message.spid = c_index;
+		message.pid = system->ptable[c_index].pid;
+		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
 
-			incShmclock();
+		incShmclock();
 
-			if (message.terminate == TERMINATE) {
-				log("%s: [%d.%d] p%d terminating\n", programName, system->clock.s, system->clock.ns, message.spid);
+		if (message.terminate == TERMINATE) {
+			log("%s: [%d.%d] p%d terminating\n", programName, system->clock.s, system->clock.ns, message.spid);
 
-				QueueNode current;
-				current.next = queue->front;
-				while (current.next != NULL) {
-					if (current.next->index != c_index) {
-						queue_push(trackingQueue, current.next->index);
-					}
-
-					current.next = (current.next->next != NULL) ? current.next->next : NULL;
+			QueueNode current;
+			current.next = queue->front;
+			while (current.next != NULL) {
+				if (current.next->index != c_index) {
+					queue_push(temp, current.next->index);
 				}
 
-				while (!queue_empty(queue)) {
-					queue_pop(queue);
-				}
-				while (!queue_empty(trackingQueue)) {
-					int i = trackingQueue->front->index;
-					queue_push(queue, i);
-					queue_pop(trackingQueue);
-				}
-
-				next.next = queue->front;
-				int i;
-				for (i = 0; i < current_iteration; i++) {
-					next.next = (next.next->next != NULL) ? next.next->next : NULL;
-				}
-				continue;
+				current.next = (current.next->next != NULL) ? current.next->next : NULL;
 			}
 
-			if (message.request) {
-				log("%s: [%d.%d] p%d requesting\n", programName, system->clock.s, system->clock.ns, message.spid);
-
-				bool isSafe = safe(&data, system->ptable, queue, c_index);
-
-				message.type = system->ptable[c_index].pid;
-				message.safe = (isSafe) ? true : false;
-				msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+			while (!queue_empty(queue)) {
+				queue_pop(queue);
+			}
+			while (!queue_empty(temp)) {
+				int i = temp->front->index;
+				queue_push(queue, i);
+				queue_pop(temp);
 			}
 
-			incShmclock();
-
-			if (message.release) {
-				log("%s: [%d.%d] p%d releasing\n", programName, system->clock.s, system->clock.ns, message.spid);
+			next = queue->front;
+			int i;
+			for (i = 0; i < current_iteration; i++) {
+				next = (next->next != NULL) ? next->next : NULL;
 			}
-
-			current_iteration++;
-
-			next.next = (next.next->next != NULL) ? next.next->next : NULL;
+			continue;
 		}
 
-		free(trackingQueue);
+		if (message.request) {
+			log("%s: [%d.%d] p%d requesting\n", programName, system->clock.s, system->clock.ns, message.spid);
+
+			bool isSafe = safe(&data, system->ptable, queue, c_index);
+
+			message.type = system->ptable[c_index].pid;
+			message.safe = (isSafe) ? true : false;
+			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+		}
+
+		incShmclock();
+
+		if (message.release) {
+			log("%s: [%d.%d] p%d releasing\n", programName, system->clock.s, system->clock.ns, message.spid);
+		}
+
+		current_iteration++;
+
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+
+	free(temp);
 }
 
 int main(int argc, char **argv) {
