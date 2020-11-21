@@ -8,7 +8,7 @@
 
 #include <stdbool.h>
 
-typedef struct {
+typedef struct QueueNode{
 	int index;
 	QueueNode *next;
 } QueueNode;
