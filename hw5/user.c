@@ -49,7 +49,8 @@ int main(int argc, char **argv) {
 
 	int i;
 	spid = atoi(argv[1]);
-	srand(getpid());
+	
+	srand(time(NULL) ^ getpid());
 
 	initIPC();
 
