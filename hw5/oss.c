@@ -53,10 +53,8 @@ static pid_t pid = -1;
 /* -------------------------------------------------- */
 
 /* Prototype Function */
-void masterInterrupt(int seconds);
 void masterHandler(int signum);
 void exitHandler(int signum);
-void timer(int seconds);
 void finalize();
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type);
 void cleanUp();
@@ -132,8 +130,6 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	timer(TIMEOUT);
-
 	initIPC();
 
 	shmclock_shmptr->s = 0;
@@ -153,11 +149,11 @@ int main(int argc, char **argv) {
 
 	//--------------------------------------------------
 	/* =====Signal Handling===== */
-	masterInterrupt(TIMEOUT);
+	registerSignalHandlers();
 
 	//--------------------------------------------------
 	/* =====Multi Processes===== */
-	while (1)
+	while (true)
 	{
 		//int spawn_nano = rand() % 500000000 + 1000000;
 		int spawn_nano = 100;
@@ -340,20 +336,10 @@ int main(int argc, char **argv) {
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-/* ====================================================================================================
-* Function    :  masterInterrupt(), masterHandler(), and exitHandler()
-* Definition  :  Interrupt master process base on given time or user interrupt via keypress. Send a 
-                  terminate signal to all the child process and "user" process. Finally, invoke clean up
-                  function.
-* Parameter   :  Number of second.
-* Return      :  None.
-==================================================================================================== */
-void masterInterrupt(int seconds)
+void registerSignalHandlers()
 {
-	//Invoke timer for termination
-	timer(seconds);
+	timer(TIMEOUT);
 
-	//Signal Handling for: SIGALRM
 	struct sigaction sa1;
 	sigemptyset(&sa1.sa_mask);
 	sa1.sa_handler = &masterHandler;
@@ -363,7 +349,6 @@ void masterInterrupt(int seconds)
 		perror("ERROR");
 	}
 
-	//Signal Handling for: SIGINT
 	struct sigaction sa2;
 	sigemptyset(&sa2.sa_mask);
 	sa2.sa_handler = &masterHandler;
@@ -400,28 +385,6 @@ void exitHandler(int signum)
 {
 	printf("%d: Terminated!\n", getpid());
 	exit(EXIT_SUCCESS);
-}
-
-/* ====================================================================================================
-* Function    :  timer()
-* Definition  :  Create a timer that decrement in real time. Once the timer end, send out SIGALRM.
-* Parameter   :  Number of second.
-* Return      :  None.
-==================================================================================================== */
-void timer(int seconds)
-{
-	//Timers decrement from it_value to zero, generate a signal, and reset to it_interval.
-	//A timer which is set to zero (it_value is zero or the timer expires and it_interval is zero) stops.
-	struct itimerval value;
-	value.it_value.tv_sec = seconds;
-	value.it_value.tv_usec = 0;
-	value.it_interval.tv_sec = 0;
-	value.it_interval.tv_usec = 0;
-
-	if (setitimer(ITIMER_REAL, &value, NULL) == -1)
-	{
-		perror("ERROR");
-	}
 }
 
 /* ====================================================================================================
@@ -1016,4 +979,13 @@ int findAvailablePID() {
 	for (i = 0; i < PROCESSES_MAX; i++)
 		if (pids[i] == 0) return i;
 	return -1;
+}
+
+void timer(int duration) {
+	struct itimerval val;
+	val.it_value.tv_sec = duration;
+	val.it_value.tv_usec = 0;
+	val.it_interval.tv_sec = 0;
+	val.it_interval.tv_usec = 0;
+	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
 }
