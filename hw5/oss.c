@@ -285,7 +285,7 @@ void masterHandler(int signum)
 	fprintf(stderr, "System time: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
 	fprintf(stderr, "Total processes executed: %d\n", fork_number);
 
-	cleanUp();
+	cleanup();
 
 	exit(EXIT_SUCCESS);
 }
@@ -310,10 +310,6 @@ void finalize()
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type) {
 	if (shmaddr != NULL && shmdt(shmaddr) == -1) crash("shmdt");
 	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
-}
-
-void cleanUp()
-{
 }
 
 void semaLock(int sem_index)
