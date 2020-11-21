@@ -653,15 +653,15 @@ void initIPC() {
 	key_t key;
 
 	if ((key = ftok(".", 0)) == -1) crash("ftok");
-	if ((shmid = shmget(key, sizeof(Time), IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("shmget");
+	if ((shmid = shmget(key, sizeof(Time), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
 	system = (System*) shmat(shmid, NULL, 0);
 	if (system == (void*) -1) crash("shmat");
 
 	if ((key = ftok(".", 1)) == -1) crash("ftok");
-	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("msgget");
+	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
 
 	if ((key = ftok(".", 2)) == -1) crash("ftok");
-	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("semget");
+	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
 	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
 }
 

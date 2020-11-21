@@ -172,12 +172,12 @@ void initIPC() {
 	key_t key;
 
 	if ((key = ftok(".", 0)) == -1) crash("ftok");
-	if ((shmid = shmget(key, sizeof(Time), IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("shmget");
+	if ((shmid = shmget(key, sizeof(Time), 0)) == -1) crash("shmget");
 	system = (System*) shmat(shmid, NULL, 0);
 	if (system == (void*) -1) crash("shmat");
 
 	if ((key = ftok(".", 1)) == -1) crash("ftok");
-	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("msgget");
+	if ((msqid = msgget(key, 0)) == -1) crash("msgget");
 }
 
 void crash(char *msg) {
