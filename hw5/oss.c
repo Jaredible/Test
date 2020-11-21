@@ -157,26 +157,15 @@ int main(int argc, char **argv) {
 				if (pid == -1) crash("fork");
 				else if (pid == 0) {
 					signal(SIGUSR1, exitHandler);
-
 					char exec_index[BUFFER_LENGTH];
 					sprintf(exec_index, "%d", spid);
-					int exect_status = execl("./user", "./user", exec_index, NULL);
-					if (exect_status == -1)
-					{
-						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", programName, spid);
-					}
-
-					finalize();
-					cleanUp();
-					exit(EXIT_FAILURE);
+					execl("./user", "./user", exec_index, NULL);
+					crash("execl");
 				}
 
 				fork_number++;
-
 				initPCB(&pcbt_shmptr[spid], spid, pid, data);
-
 				queue_push(queue, spid);
-
 				log("%s: [%d.%d] p%d created\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, spid);
 			}
 		}
@@ -196,33 +185,27 @@ int main(int argc, char **argv) {
 			master_message.index = c_index;
 			master_message.childPid = pcbt_shmptr[c_index].pid;
 			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
-
 			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
 
 			incShmclock();
 
-			if (master_message.flag == 0)
-			{
+			if (master_message.flag == 0) {
 				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 
 				QueueNode current;
 				current.next = queue->front;
-				while (current.next != NULL)
-				{
-					if (current.next->index != c_index)
-					{
+				while (current.next != NULL) {
+					if (current.next->index != c_index) {
 						queue_push(trackingQueue, current.next->index);
 					}
 
 					current.next = (current.next->next != NULL) ? current.next->next : NULL;
 				}
 
-				while (!queue_empty(queue))
-				{
+				while (!queue_empty(queue)) {
 					queue_pop(queue);
 				}
-				while (!queue_empty(trackingQueue))
-				{
+				while (!queue_empty(trackingQueue)) {
 					int i = trackingQueue->front->index;
 					queue_push(queue, i);
 					queue_pop(trackingQueue);
@@ -230,15 +213,13 @@ int main(int argc, char **argv) {
 
 				next.next = queue->front;
 				int i;
-				for (i = 0; i < current_iteration; i++)
-				{
+				for (i = 0; i < current_iteration; i++) {
 					next.next = (next.next->next != NULL) ? next.next->next : NULL;
 				}
 				continue;
 			}
 
-			if (master_message.isRequest == true)
-			{
+			if (master_message.isRequest == true) {
 				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 
 				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
@@ -250,8 +231,7 @@ int main(int argc, char **argv) {
 
 			incShmclock();
 
-			if (master_message.isRelease)
-			{
+			if (master_message.isRelease) {
 				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 			}
 
@@ -288,19 +268,13 @@ void registerSignalHandlers() {
 	sigemptyset(&sa1.sa_mask);
 	sa1.sa_handler = &masterHandler;
 	sa1.sa_flags = SA_RESTART;
-	if (sigaction(SIGALRM, &sa1, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	if (sigaction(SIGALRM, &sa1, NULL) == -1) crash("sigaction");
 
 	struct sigaction sa2;
 	sigemptyset(&sa2.sa_mask);
 	sa2.sa_handler = &masterHandler;
 	sa2.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa2, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	if (sigaction(SIGINT, &sa2, NULL) == -1) crash("sigaction");
 
 	//Signal Handling for: SIGUSR1
 	signal(SIGUSR1, SIG_IGN);
@@ -322,7 +296,7 @@ void masterHandler(int signum)
 
 void exitHandler(int signum)
 {
-	printf("%d: Terminated!\n", getpid());
+//	printf("%d: Terminated!\n", getpid());
 	exit(EXIT_SUCCESS);
 }
 
