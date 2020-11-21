@@ -27,32 +27,22 @@
 
 #define log _log
 
-/* Static GLOBAL variable (misc) */
 static char *programName;
-static key_t key;
+
+static int shmid = -1;
+static int msqid = -1;
+static int semid = -1;
+
+static System *system = NULL;
+static Message message;
+
+static int fork_number = 0;
+static pid_t pid = -1;
+
 static Queue *queue;
 static Time forkclock;
 static Data data;
-/* -------------------------------------------------- */
 
-/* Static GLOBAL variable (shared memory) */
-static int mqueueid = -1;
-static Message master_message;
-static int shmclock_shmid = -1;
-static Time *shmclock_shmptr = NULL;
-static int semid = -1;
-static struct sembuf sema_operation;
-static int pcbt_shmid = -1;
-static PCB *pcbt_shmptr = NULL;
-/* -------------------------------------------------- */
-
-/* Static GLOBAL variable (fork) */
-static int fork_number = 0;
-static pid_t pid = -1;
-/* -------------------------------------------------- */
-
-/* Prototype Function */
-void signalHandler(int);
 void semaLock(int);
 void semaRelease(int);
 void incShmclock();
@@ -75,6 +65,7 @@ void error(char*, ...);
 void crash(char*);
 void usage(int);
 void registerSignalHandlers();
+void signalHandler(int);
 void timer(int);
 void initIPC();
 void freeIPC();
@@ -121,8 +112,10 @@ int main(int argc, char **argv) {
 
 	initIPC();
 
-	shmclock_shmptr->s = 0;
-	shmclock_shmptr->ns = 0;
+	memset(pids, 0, sizeof(pids));
+
+	system->clock.s = 0;
+	system->clock.ns = 0;
 	forkclock.s = 0;
 	forkclock.ns = 0;
 
@@ -130,7 +123,7 @@ int main(int argc, char **argv) {
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
 	if (fclose(fp) == EOF) crash("fclose");
 
-	initPCBT(pcbt_shmptr);
+	initPCBT(system->ptable);
 
 	queue = queue_create();
 	initResource(&data);
@@ -159,9 +152,9 @@ int main(int argc, char **argv) {
 				}
 
 				fork_number++;
-				initPCB(&pcbt_shmptr[spid], spid, pid, data);
+				initPCB(&system->ptable[spid], spid, pid, data);
 				queue_push(queue, spid);
-				log("%s: [%d.%d] p%d created\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, spid);
+				log("%s: [%d.%d] p%d created\n", programName, system->clock.s, system->clock.ns, spid);
 			}
 		}
 
@@ -176,16 +169,16 @@ int main(int argc, char **argv) {
 			incShmclock();
 
 			int c_index = next.next->index;
-			master_message.type = pcbt_shmptr[c_index].pid;
-			master_message.spid = c_index;
-			master_message.pid = pcbt_shmptr[c_index].pid;
-			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
-			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
+			message.type = system->ptable[c_index].pid;
+			message.spid = c_index;
+			message.pid = system->ptable[c_index].pid;
+			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+			msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
 
 			incShmclock();
 
-			if (master_message.terminate == TERMINATE) {
-				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
+			if (message.terminate == TERMINATE) {
+				log("%s: [%d.%d] p%d terminating\n", programName, system->clock.s, system->clock.ns, message.spid);
 
 				QueueNode current;
 				current.next = queue->front;
@@ -214,20 +207,20 @@ int main(int argc, char **argv) {
 				continue;
 			}
 
-			if (master_message.request) {
-				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
+			if (message.request) {
+				log("%s: [%d.%d] p%d requesting\n", programName, system->clock.s, system->clock.ns, message.spid);
 
-				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
+				bool isSafe = bankerAlgorithm(&data, system->ptable, queue, c_index);
 
-				master_message.type = pcbt_shmptr[c_index].pid;
-				master_message.safe = (isSafe) ? true : false;
-				msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
+				message.type = system->ptable[c_index].pid;
+				message.safe = (isSafe) ? true : false;
+				msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 			}
 
 			incShmclock();
 
-			if (master_message.release) {
-				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
+			if (message.release) {
+				log("%s: [%d.%d] p%d releasing\n", programName, system->clock.s, system->clock.ns, message.spid);
 			}
 
 			current_iteration++;
@@ -279,7 +272,7 @@ void signalHandler(int signum)
 {
 	finalize();
 
-	fprintf(stderr, "System time: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
+	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
 	fprintf(stderr, "Total processes executed: %d\n", fork_number);
 
 	freeIPC();
@@ -298,20 +291,14 @@ void finalize()
 	}
 }
 
-void semaLock(int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = -1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+void semaLock(int index) {
+	struct sembuf sop = { index, -1, 0 };
+	semop(semid, &sop, 1);
 }
 
-void semaRelease(int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = 1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+void semaRelease(const int index) {
+	struct sembuf sop = { index, 1, 0 };
+	semop(semid, &sop, 1);
 }
 
 void incShmclock()
@@ -320,12 +307,12 @@ void incShmclock()
 	int r_nano = rand() % 1000000 + 1;
 
 	forkclock.ns += r_nano;
-	shmclock_shmptr->ns += r_nano;
+	system->clock.ns += r_nano;
 
-	if (shmclock_shmptr->ns >= 1000000000)
+	if (system->clock.ns >= 1000000000)
 	{
-		shmclock_shmptr->s++;
-		shmclock_shmptr->ns = 1000000000 - shmclock_shmptr->ns;
+		system->clock.s++;
+		system->clock.ns = 1000000000 - system->clock.ns;
 	}
 
 	semaRelease(0);
@@ -663,68 +650,28 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 }
 
 void initIPC() {
-	memset(pids, 0, sizeof(pids));
+	key_t key;
 
-	//--------------------------------------------------
-	/* =====Initialize message queue===== */
-	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
-	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, IPC_CREAT | 0600);
-	if(mqueueid < 0) crash("msgget");
+	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((shmid = shmget(key, sizeof(Time), IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("shmget");
+	system = (System*) shmat(shmid, NULL, 0);
+	if (system == (void*) -1) crash("shmat");
 
+	if ((key = ftok(".", 1)) == -1) crash("ftok");
+	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("msgget");
 
-	//--------------------------------------------------
-	/* =====Initialize [shmclock] shared memory===== */
-	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [shmclock] shared memory
-	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
-	if(shmclock_shmid < 0) crash("shmget");
-
-	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if(shmclock_shmptr == (void *)( -1 )) crash("shmat");
-
-	//Initialize shared memory attribute of [shmclock] and forkclock
-	shmclock_shmptr->s = 0;
-	shmclock_shmptr->ns = 0;
-	forkclock.s = 0;
-	forkclock.ns = 0;
-
-	//--------------------------------------------------
-	/* =====Initialize semaphore===== */
-	//Creating 3 semaphores elements
-	//Create semaphore if doesn't exist with 666 bits permission. Return error if semaphore already exists
-	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
-	if(semid == -1) crash("semget");
-	
-	//Initialize the semaphore(s) in our set to 1
-	semctl(semid, 0, SETVAL, 1);	//Semaphore #0: for [shmclock] shared memory
-	
-
-	//--------------------------------------------------
-	/* =====Initialize process control block table===== */
-	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [pcbt] shared memory
-	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
-	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
-	if(pcbt_shmid < 0) crash("shmget");
-
-	//Attaching shared memory and check if can attach it. If not, delete the [pcbt] shared memory
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if(pcbt_shmptr == (void *)( -1 )) crash("shmat");
+	if ((key = ftok(".", 2)) == -1) crash("ftok");
+	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("semget");
+	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
 }
 
 void freeIPC() {
-	if (mqueueid > 0) msgctl(mqueueid, IPC_RMID, NULL);
+	if (system != NULL && shmdt(system) == -1) crash("shmdt");
+	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
 
-	if (shmclock_shmptr != NULL && shmdt(shmclock_shmptr) == -1) crash("shmdt");
-	if (shmclock_shmid > 0 && shmctl(shmclock_shmid, IPC_RMID, NULL) == -1) crash("shmdt");
+	if (msqid > 0 && msgctl(msqid, IPC_RMID, NULL) == -1) crash("msgctl");
 
-	if (semid > 0) semctl(semid, 0, IPC_RMID);
-
-	if (pcbt_shmptr != NULL && shmdt(pcbt_shmptr) == -1) crash("shmdt");
-	if (pcbt_shmid > 0 && shmctl(pcbt_shmid, IPC_RMID, NULL) == -1) crash("shmdt");
+	if (semid > 0 && semctl(semid, 0, IPC_RMID) == -1) crash("semctl");
 }
 
 void crash(char *msg) {

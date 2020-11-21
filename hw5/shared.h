@@ -61,4 +61,9 @@ typedef struct {
 	int release[RESOURCES_MAX];
 } PCB;
 
+typedef struct {
+	Time clock;
+	PCB ptable[PROCESSES_MAX];
+} System;
+
 #endif
