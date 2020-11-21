@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
 		/* =====Main Driver Procedure===== */
 		//Application procedure queues
 		QueueNode next;
-		Queue *trackingQueue = createQueue();
+		Queue *trackingQueue = queue_create();
 
 		int current_iteration = 0;
 		next.next = queue->front;
@@ -841,7 +841,7 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 	}
 
 	//=====Initialization/Get information=====
-	int count = getQueueCount(queue);
+	int count = queue_size(queue);
 	int maxm[count][RESOURCES_MAX];
 	int allot[count][RESOURCES_MAX];
 	int req[RESOURCES_MAX];
