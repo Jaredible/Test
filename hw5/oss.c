@@ -54,9 +54,6 @@ static pid_t pid = -1;
 /* Prototype Function */
 void masterHandler(int);
 void exitHandler(int);
-void finalize();
-void discardShm(int, void*, char*, char*, char*);
-void cleanUp();
 void semaLock(int);
 void semaRelease(int);
 void incShmclock();
@@ -82,6 +79,7 @@ void registerSignalHandlers();
 void timer(int);
 void initIPC();
 void freeIPC();
+void finalize();
 void cleanup();
 void log(char*, ...);
 int findAvailablePID();
@@ -284,10 +282,8 @@ void masterHandler(int signum)
 {
 	finalize();
 
-	//Print out basic statistic
-	fprintf(stderr, "- Master PID: %d\n", getpid());
-	fprintf(stderr, "- Number of forking during this execution: %d\n", fork_number);
-	fprintf(stderr, "- Final simulation time of this execution: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
+	fprintf(stderr, "System time: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
+	fprintf(stderr, "Total processes executed: %d\n", fork_number);
 
 	cleanUp();
 
@@ -311,44 +307,13 @@ void finalize()
 	}
 }
 
-void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type)
-{
-	if (shmaddr != NULL)
-	{
-		if ((shmdt(shmaddr)) << 0)
-		{
-			fprintf(stderr, "%s (%s) ERROR: could not detach [%s] shared memory!\n", exe_name, process_type, shm_name);
-		}
-	}
-
-	if (shmid > 0)
-	{
-		if ((shmctl(shmid, IPC_RMID, NULL)) < 0)
-		{
-			fprintf(stderr, "%s (%s) ERROR: could not delete [%s] shared memory! Exiting...\n", exe_name, process_type, shm_name);
-		}
-	}
+void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type) {
+	if (shmaddr != NULL && shmdt(shmaddr) == -1) crash("shmdt");
+	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
 }
 
 void cleanUp()
 {
-	//Delete [message queue] shared memory
-	if (mqueueid > 0)
-	{
-		msgctl(mqueueid, IPC_RMID, NULL);
-	}
-
-	//Release and delete [shmclock] shared memory
-	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", programName, "Master");
-
-	//Delete semaphore
-	if (semid > 0)
-	{
-		semctl(semid, 0, IPC_RMID);
-	}
-
-	//Release and delete [pcbt] shared memory
-	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", programName, "Master");
 }
 
 void semaLock(int sem_index)
@@ -769,6 +734,15 @@ void initIPC() {
 }
 
 void freeIPC() {
+	if (mqueueid > 0) msgctl(mqueueid, IPC_RMID, NULL);
+
+	if (shmclock_shmptr != NULL && shmdt(shmclock_shmptr) == -1) crash("shmdt");
+	if (shmclock_shmid > 0 && shmctl(shmclock_shmid, IPC_RMID, NULL) == -1) crash("shmdt");
+
+	if (semid > 0) semctl(semid, 0, IPC_RMID);
+
+	if (pcbt_shmptr != NULL && shmdt(pcbt_shmptr) == -1) crash("shmdt");
+	if (pcbt_shmid > 0 && shmctl(pcbt_shmid, IPC_RMID, NULL) == -1) crash("shmdt");
 }
 
 void crash(char *msg) {
