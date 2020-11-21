@@ -181,16 +181,16 @@ int main(int argc, char **argv) {
 			incShmclock();
 
 			int c_index = next.next->index;
-			master_message.mtype = pcbt_shmptr[c_index].pid;
-			master_message.index = c_index;
-			master_message.childPid = pcbt_shmptr[c_index].pid;
+			master_message.type = pcbt_shmptr[c_index].pid;
+			master_message.spid = c_index;
+			master_message.pid = pcbt_shmptr[c_index].pid;
 			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
 			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
 
 			incShmclock();
 
-			if (master_message.flag == 0) {
-				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
+			if (master_message.action == TERMINATE) {
+				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
 
 				QueueNode current;
 				current.next = queue->front;
@@ -219,20 +219,20 @@ int main(int argc, char **argv) {
 				continue;
 			}
 
-			if (master_message.isRequest == true) {
-				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
+			if (master_message.action == REQUEST) {
+				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
 
 				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
 
-				master_message.mtype = pcbt_shmptr[c_index].pid;
-				master_message.isSafe = (isSafe) ? true : false;
+				master_message.type = pcbt_shmptr[c_index].pid;
+				master_message.safe = (isSafe) ? true : false;
 				msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
 			}
 
 			incShmclock();
 
-			if (master_message.isRelease) {
-				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
+			if (master_message.action == RELEASE) {
+				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.spid);
 			}
 
 			current_iteration++;

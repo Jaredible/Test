@@ -36,14 +36,12 @@ typedef struct {
 } Time;
 
 typedef struct {
-	long mtype;
-	int index;
-	pid_t childPid;
-	int flag;
-	bool isRequest;
-	bool isRelease;
-	bool isSafe;
-	char message[BUFFER_LENGTH];
+	long type;
+	pid_t pid;
+	int spid;
+	int action;
+	bool safe;
+	char text[BUFFER_LENGTH];
 } Message;
 
 typedef struct {

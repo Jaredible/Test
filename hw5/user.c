@@ -127,10 +127,11 @@ int main(int argc, char *argv[])
 		}
 
 		//Send a message to master that I got the signal and master should invoke an action base on my "choice"
-		user_message.mtype = 1;
-		user_message.flag = (is_terminate) ? 0 : 1;
-		user_message.isRequest = (is_requesting) ? true : false;
-		user_message.isRelease = (is_releasing) ? true : false;
+		user_message.type = 1;
+		int action = TERMINATE;
+		if (is_requesting) action = REQUEST;
+		else if (is_releasing) action = RELEASE;
+		user_message.action = action;
 		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
 
 		//--------------------------------------------------
@@ -151,7 +152,7 @@ int main(int argc, char *argv[])
 				//Waiting for master signal to determine if it safe to proceed the request
 				msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
-				if (user_message.isSafe == true)
+				if (user_message.safe == true)
 				{
 					for (i = 0; i < RESOURCES_MAX; i++)
 					{
