@@ -8,9 +8,9 @@
 
 #include <stdbool.h>
 
-typedef struct QueueNode{
+typedef struct Node {
 	int index;
-	QueueNode *next;
+	struct Node *next;
 } QueueNode;
 
 typedef struct {
