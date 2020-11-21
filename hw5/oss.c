@@ -42,7 +42,7 @@ static int spawnCount = 0;
 static int exitCount = 0;
 
 static Queue *queue;
-static Time forkclock;
+static Time nextSpawn;
 static Data data;
 
 void semaLock(int);
@@ -98,11 +98,8 @@ void spawnProcess(int spid) {
 }
 
 void trySpawnProcess() {
-	//int spawn_nano = rand() % 500000000 + 1000000;
-	int spawn_nano = 100;
-	if (forkclock.ns >= spawn_nano) {
-		forkclock.ns = 0;
-
+	if (nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
+		nextSpawn.ns = 0;
 		int spid = findAvailablePID();
 		if (spid >= 0) spawnProcess(spid);
 	}
@@ -195,8 +192,8 @@ int main(int argc, char **argv) {
 
 	system->clock.s = 0;
 	system->clock.ns = 0;
-	forkclock.s = 0;
-	forkclock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
 
 	FILE *fp;
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
@@ -285,7 +282,7 @@ void advanceClock() {
 	semaLock(0);
 	int r_nano = rand() % 1000000 + 1;
 
-	forkclock.ns += r_nano;
+	nextSpawn.ns += r_nano;
 	system->clock.ns += r_nano;
 
 	if (system->clock.ns >= 1000000000)
