@@ -26,6 +26,7 @@
 #include "queue.h"
 
 #define log _log
+#define system _system
 
 static char *programName;
 
