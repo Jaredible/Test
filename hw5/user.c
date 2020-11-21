@@ -44,7 +44,7 @@ void init(int, char**);
 int main(int argc, char **argv) {
 	init(argc, argv);
 
-	processInterrupt();
+	registerSignalHandlers();
 
 	int i;
 	spid = atoi(argv[1]);
