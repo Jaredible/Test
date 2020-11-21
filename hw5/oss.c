@@ -80,7 +80,34 @@ int findAvailablePID();
 bool verbose = false;
 pid_t pids[PROCESSES_MAX];
 
-void test() {
+void trySpawnProcess() {
+	int spawn_nano = 100;
+	if (forkclock.ns >= spawn_nano) {
+		forkclock.ns = 0;
+
+		int spid = findAvailablePID();
+		if (spid >= 0) {
+			pid = fork();
+			pids[spid] = pid;
+
+			if (pid == -1) crash("fork");
+			else if (pid == 0) {
+				char arg[BUFFER_LENGTH];
+				snprintf(arg, BUFFER_LENGTH, "%d", spid);
+				execl("./user", "user", arg, (char*) NULL);
+				crash("execl");
+			}
+
+			activeCount++;
+			spawnCount++;
+			initPCB(pid, spid);
+			queue_push(queue, spid);
+			log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
+		}
+	}
+}
+
+void handleProcesses() {
 	int i, j = 0;
 	QueueNode *next = queue->front;
 	Queue *temp = queue_create();
@@ -203,30 +230,7 @@ int main(int argc, char **argv) {
 
 	while (true) {
 		//int spawn_nano = rand() % 500000000 + 1000000;
-		int spawn_nano = 100;
-		if (forkclock.ns >= spawn_nano) {
-			forkclock.ns = 0;
-
-			int spid = findAvailablePID();
-			if (spid >= 0) {
-				pid = fork();
-				pids[spid] = pid;
-
-				if (pid == -1) crash("fork");
-				else if (pid == 0) {
-					char exec_index[BUFFER_LENGTH];
-					sprintf(exec_index, "%d", spid);
-					execl("./user", "./user", exec_index, NULL);
-					crash("execl");
-				}
-
-				activeCount++;
-				spawnCount++;
-				initPCB(pid, spid);
-				queue_push(queue, spid);
-				log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
-			}
-		}
+		trySpawnProcess();
 
 		incShmclock();
 
