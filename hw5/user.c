@@ -39,6 +39,7 @@ void processHandler(int signum);
 void resumeHandler(int signum);
 
 void initIPC();
+void crash(char*);
 
 int main(int argc, char *argv[])
 {
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
 	userStartClock.s = system->clock.s;
 	userStartClock.ns = system->clock.ns;
 	bool is_ran_duration = false;
-	
+
 	while (true) {
 		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
@@ -177,4 +178,14 @@ void initIPC() {
 
 	if ((key = ftok(".", 1)) == -1) crash("ftok");
 	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | 0600)) == -1) crash("msgget");
+}
+
+void crash(char *msg) {
+	char buf[BUFFER_LENGTH];
+	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
+	perror(buf);
+	
+	freeIPC();
+	
+	exit(EXIT_FAILURE);
 }
