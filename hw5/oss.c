@@ -44,7 +44,8 @@ static Time forkclock;
 static Data data;
 
 void semaLock(int);
-void semaRelease(int);
+void semUnlock(int);
+
 void incShmclock();
 
 void initResource(Data*);
@@ -54,11 +55,9 @@ void updateResource(Data*, PCB*);
 void initPCBT(PCB*);
 void initPCB(PCB*, int, pid_t, Data);
 
-void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
-void calculateNeedMatrix(Data*, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
-void displayVector(char*, char*, int vector[RESOURCES_MAX]);
-void displayMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
-bool bankerAlgorithm(Data*, PCB*, Queue*, int);
+void printVector(char*, char*, int vector[RESOURCES_MAX]);
+void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
+bool safe(Data*, PCB*, Queue*, int);
 
 void init(int, char**);
 void error(char*, ...);
@@ -210,7 +209,7 @@ int main(int argc, char **argv) {
 			if (message.request) {
 				log("%s: [%d.%d] p%d requesting\n", programName, system->clock.s, system->clock.ns, message.spid);
 
-				bool isSafe = bankerAlgorithm(&data, system->ptable, queue, c_index);
+				bool isSafe = safe(&data, system->ptable, queue, c_index);
 
 				message.type = system->ptable[c_index].pid;
 				message.safe = (isSafe) ? true : false;
@@ -277,8 +276,7 @@ void signalHandler(int sig) {
 	exit(EXIT_SUCCESS);
 }
 
-void finalize()
-{
+void finalize() {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
 	kill(0, SIGUSR1);
 	pid_t p = 0;
@@ -293,13 +291,12 @@ void semaLock(int index) {
 	semop(semid, &sop, 1);
 }
 
-void semaRelease(const int index) {
+void semUnlock(const int index) {
 	struct sembuf sop = { index, 1, 0 };
 	semop(semid, &sop, 1);
 }
 
-void incShmclock()
-{
+void incShmclock() {
 	semaLock(0);
 	int r_nano = rand() % 1000000 + 1;
 
@@ -312,11 +309,10 @@ void incShmclock()
 		system->clock.ns = 1000000000 - system->clock.ns;
 	}
 
-	semaRelease(0);
+	semUnlock(0);
 }
 
-void initResource(Data *data)
-{
+void initResource(Data *data) {
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
 	{
@@ -327,8 +323,7 @@ void initResource(Data *data)
 	data->shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
 }
 
-void displayResource(Data data)
-{
+void displayResource(Data data) {
 	log("===Total Resource===\n<");
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
@@ -345,8 +340,7 @@ void displayResource(Data data)
 	log("Sharable Resources: %d\n", data.shared);
 }
 
-void initPCBT(PCB *pcbt)
-{
+void initPCBT(PCB *pcbt) {
 	int i;
 	for (i = 0; i < PROCESSES_MAX; i++)
 	{
@@ -355,8 +349,7 @@ void initPCBT(PCB *pcbt)
 	}
 }
 
-void initPCB(PCB *pcb, int index, pid_t pid, Data data)
-{
+void initPCB(PCB *pcb, int index, pid_t pid, Data data) {
 	pcb->spid = index;
 	pcb->pid = pid;
 
@@ -370,47 +363,7 @@ void initPCB(PCB *pcb, int index, pid_t pid, Data data)
 	}
 }
 
-void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count)
-{
-	QueueNode next;
-	next.next = queue->front;
-
-	int i, j;
-	int c_index = next.next->index;
-	for (i = 0; i < count; i++)
-	{
-		for (j = 0; j < RESOURCES_MAX; j++)
-		{
-			maxm[i][j] = pcbt[c_index].maximum[j];
-			allot[i][j] = pcbt[c_index].allocation[j];
-		}
-
-		if (next.next->next != NULL)
-		{
-			next.next = next.next->next;
-			c_index = next.next->index;
-		}
-		else
-		{
-			next.next = NULL;
-		}
-	}
-}
-
-void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count)
-{
-	int i, j;
-	for (i = 0; i < count; i++)
-	{
-		for (j = 0; j < RESOURCES_MAX; j++)
-		{
-			need[i][j] = maxm[i][j] - allot[i][j];
-		}
-	}
-}
-
-void displayVector(char *v_name, char *l_name, int vector[RESOURCES_MAX])
-{
+void printVector(char *v_name, char *l_name, int vector[RESOURCES_MAX]) {
 	log("===%s Resource===\n%3s :  <", v_name, l_name);
 
 	int i;
@@ -426,8 +379,7 @@ void displayVector(char *v_name, char *l_name, int vector[RESOURCES_MAX])
 	log(">\n");
 }
 
-void displayMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count)
-{
+void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count) {
 	QueueNode next;
 	next.next = queue->front;
 
@@ -452,7 +404,7 @@ void displayMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int 
 	}
 }
 
-bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
+bool safe(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
 	//=====Check for null queue=====
@@ -473,10 +425,38 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	int avail[RESOURCES_MAX];
 
 	//Setting up matrix base on given queue and process control block table
-	setMatrix(pcbt, queue, maxm, allot, count);
+	QueueNode next;
+	next.next = queue->front;
+
+	int i, j;
+	int c_index = next.next->index;
+	for (i = 0; i < count; i++)
+	{
+		for (j = 0; j < RESOURCES_MAX; j++)
+		{
+			maxm[i][j] = pcbt[c_index].maximum[j];
+			allot[i][j] = pcbt[c_index].allocation[j];
+		}
+
+		if (next.next->next != NULL)
+		{
+			next.next = next.next->next;
+			c_index = next.next->index;
+		}
+		else
+		{
+			next.next = NULL;
+		}
+	}
 
 	//Calculate need matrix
-	calculateNeedMatrix(data, need, maxm, allot, count);
+	for (i = 0; i < count; i++)
+	{
+		for (j = 0; j < RESOURCES_MAX; j++)
+		{
+			need[i][j] = maxm[i][j] - allot[i][j];
+		}
+	}
 
 	//Setting up available vector and request vector
 	for (i = 0; i < RESOURCES_MAX; i++)
@@ -512,11 +492,11 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	//Display information
 	if (verbose)
 	{
-		displayMatrix("Maximum", queue, maxm, count);
-		displayMatrix("Allocation", queue, allot, count);
+		printMatrix("Maximum", queue, maxm, count);
+		printMatrix("Allocation", queue, allot, count);
 		char str[BUFFER_LENGTH];
 		sprintf(str, "P%2d", c_index);
-		displayVector("Request", str, req);
+		printVector("Request", str, req);
 	}
 
 	//=====Finding SAFE Sequence=====
@@ -542,8 +522,8 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 			//Display information
 			if (verbose)
 			{
-				displayVector("Available", "A  ", avail);
-				displayMatrix("Need", queue, need, count);
+				printVector("Available", "A  ", avail);
+				printMatrix("Need", queue, need, count);
 			}
 			return false;
 		}
@@ -561,8 +541,8 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 			//Display information
 			if (verbose)
 			{
-				displayVector("Available", "A  ", avail);
-				displayMatrix("Need", queue, need, count);
+				printVector("Available", "A  ", avail);
+				printMatrix("Need", queue, need, count);
 			}
 			return false;
 		}
@@ -619,8 +599,8 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	//Display information
 	if (verbose)
 	{
-		displayVector("Available", "A  ", avail);
-		displayMatrix("Need", queue, need, count);
+		printVector("Available", "A  ", avail);
+		printMatrix("Need", queue, need, count);
 	}
 
 	//Map the safe sequence with the queue sequence
