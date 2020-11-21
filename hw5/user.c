@@ -34,18 +34,12 @@ static int msqid = -1;
 static System *system = NULL;
 static Message message;
 
-void processInterrupt();
-void processHandler(int signum);
-void resumeHandler(int signum);
-
 void initIPC();
 void crash(char*);
 void init(int, char**);
 
 int main(int argc, char **argv) {
 	init(argc, argv);
-
-	processInterrupt();
 
 	int i;
 	spid = atoi(argv[1]);
@@ -141,32 +135,6 @@ int main(int argc, char **argv) {
 	}
 
 	exit(spid);
-}
-
-void processInterrupt()
-{
-	struct sigaction sa1;
-	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &processHandler;
-	sa1.sa_flags = SA_RESTART;
-	if (sigaction(SIGUSR1, &sa1, NULL) == -1)
-	{
-		perror("ERROR");
-	}
-
-	struct sigaction sa2;
-	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &processHandler;
-	sa2.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa2, NULL) == -1)
-	{
-		perror("ERROR");
-	}
-}
-void processHandler(int signum)
-{
-	printf("%d: Terminated!\n", getpid());
-	exit(2);
 }
 
 void initIPC() {

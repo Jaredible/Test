@@ -131,6 +131,8 @@ int main(int argc, char **argv) {
 
 	registerSignalHandlers();
 
+	timer(TIMEOUT);
+
 	while (true) {
 		//int spawn_nano = rand() % 500000000 + 1000000;
 		int spawn_nano = 100;
@@ -250,22 +252,8 @@ int main(int argc, char **argv) {
 }
 
 void registerSignalHandlers() {
-	timer(TIMEOUT);
-
-	struct sigaction sa1;
-	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &signalHandler;
-	sa1.sa_flags = SA_RESTART;
-	if (sigaction(SIGALRM, &sa1, NULL) == -1) crash("sigaction");
-
-	struct sigaction sa2;
-	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &signalHandler;
-	sa2.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa2, NULL) == -1) crash("sigaction");
-
-	//Signal Handling for: SIGUSR1
-	signal(SIGUSR1, SIG_IGN);
+	signal(SIGINT, signalHandler);
+	signal(SIGALRM, signalHandler);
 }
 
 void signalHandler(int signum)
