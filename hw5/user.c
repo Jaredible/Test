@@ -201,7 +201,7 @@ void processInterrupt()
 }
 void processHandler(int signum)
 {
-	printf("%d: Terminated!\n", getpid());
+//	printf("%d: Terminated!\n", getpid());
 	cleanUp();
 	exit(2);
 }
