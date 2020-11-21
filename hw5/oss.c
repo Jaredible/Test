@@ -75,152 +75,61 @@ void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOU
 void displayVector(FILE *fpw, int *line_count, char *v_name, char *l_name, int vector[RESOURCES_MAX]);
 void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count);
 bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index);
-/* -------------------------------------------------- */
 
-/* ====================================================================================================
-MAIN
-==================================================================================================== */
-int main(int argc, char *argv[])
-{
-	/* =====Initialize resources===== */
-	exe_name = argv[0];
-	srand(getpid());
+void init(int, char**);
+void crash(char*);
+void usage(int);
+void registerSignalHandlers();
+void timer(int);
+void initIPC();
+void freeIPC();
+void cleanup();
 
-	//--------------------------------------------------
-	/* =====Options===== */
-	//Optional Variables
-	char log_file[256] = "log.dat";
-	bool verbose = false;
-	int line_count = 0; //NOTE: file line count is not implemented, but skeleton structure is setup.
+bool verbose = false;
 
-	int opt;
-	while ((opt = getopt(argc, argv, "hl:v")) != -1)
-	{
-		switch (opt)
-		{
-		case 'h':
-			printf("NAME:\n");
-			printf("	%s - simulate the resource management module with the help of deadlock avoidance strategy.\n", exe_name);
-			printf("\nUSAGE:\n");
-			printf("	%s [-h] [-l logfile] [-t time].\n", exe_name);
-			printf("\nDESCRIPTION:\n");
-			printf("	-h          : print the help page and exit.\n");
-			printf("	-l filename : the log file used (default log.dat).\n");
-			printf("	-v          : turn on verbose mode (default is turn off).\n");
-			exit(0);
+int main(int argc, char **argv) {
+	srand(time(NULL) ^ getpid());
 
-		case 'l':
-			strncpy(log_file, optarg, 255);
-			fprintf(stderr, "Your new log file is: %s\n", log_file);
-			break;
+	bool ok = false;
 
-		case 'v':
-			verbose = true;
-			break;
+	while (true) {
+		int c = getopt(argc, argv, "hv");
+		if (c == -1) break;
 
-		default:
-			fprintf(stderr, "%s: please use \"-h\" option for more info.\n", exe_name);
-			exit(EXIT_FAILURE);
+		switch (c) {
+			case 'h':
+				usage(EXIT_SUCCESS);
+			case 'v':
+				verbose = true;
+				break;
+			default:
+				ok = false;
 		}
 	}
 
-	//Check for extra arguments
-	if (optind < argc)
-	{
-		fprintf(stderr, "%s ERROR: extra arguments was given! Please use \"-h\" option for more info.\n", exe_name);
-		exit(EXIT_FAILURE);
+	if (optind < argc) {
+		char buf[BUFFER_LENGTH];
+		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
+		while (optind < argc) {
+			strncat(buf, argv[optind++], BUFFER_LENGTH);
+			if (optind < argc) strncat(buf, ", ", BUFFER_LENGTH);
+		}
+		error(buf);
+		ok = false;
 	}
+	
+	if (!ok) usage(EXIT_FAILURE);
 
-	//--------------------------------------------------
-	/* =====Initialize LOG File===== */
-	fpw = fopen(log_file, "w");
-	if (fpw == NULL)
-	{
-		fprintf(stderr, "%s ERROR: unable to write the output file.\n", argv[0]);
-		exit(EXIT_FAILURE);
-	}
+	timer(TIMEOUT);
 
-	//--------------------------------------------------
-	/* =====Initialize BITMAP===== */
-	//Zero out all elements of bit map
 	memset(bitmap, '\0', sizeof(bitmap));
 
-	//--------------------------------------------------
-	/* =====Initialize message queue===== */
-	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
-	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, IPC_CREAT | 0600);
-	if (mqueueid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
+	initIPC();
 
-	//--------------------------------------------------
-	/* =====Initialize [shmclock] shared memory===== */
-	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [shmclock] shared memory
-	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
-	if (shmclock_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if (shmclock_shmptr == (void *)(-1))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//Initialize shared memory attribute of [shmclock] and forkclock
 	shmclock_shmptr->s = 0;
 	shmclock_shmptr->ns = 0;
 	forkclock.s = 0;
 	forkclock.ns = 0;
-
-	//--------------------------------------------------
-	/* =====Initialize semaphore===== */
-	//Creating 3 semaphores elements
-	//Create semaphore if doesn't exist with 666 bits permission. Return error if semaphore already exists
-	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
-	if (semid == -1)
-	{
-		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//Initialize the semaphore(s) in our set to 1
-	semctl(semid, 0, SETVAL, 1); //Semaphore #0: for [shmclock] shared memory
-
-	//--------------------------------------------------
-	/* =====Initialize process control block table===== */
-	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [pcbt] shared memory
-	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
-	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
-	if (pcbt_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//Attaching shared memory and check if can attach it. If not, delete the [pcbt] shared memory
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if (pcbt_shmptr == (void *)(-1))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
 
 	//Init process control block table variable
 	initPCBT(pcbt_shmptr);
@@ -417,7 +326,7 @@ int main(int argc, char *argv[])
 				fflush(fpw);
 
 				//Execute the Banker Algorithm
-				bool isSafe = bankerAlgorithm(fpw, &line_count, verbose, &data, pcbt_shmptr, queue, c_index);
+				bool isSafe = bankerAlgorithm(fpw, 0, verbose, &data, pcbt_shmptr, queue, c_index);
 
 				//Send a message to child process whether if it safe to proceed the request OR not
 				master_message.mtype = pcbt_shmptr[c_index].pid;
@@ -1031,4 +940,94 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 	fflush(fpw);
 
 	return true;
+}
+
+void initIPC() {
+	//--------------------------------------------------
+	/* =====Initialize BITMAP===== */
+	//Zero out all elements of bit map
+	memset(bitmap, '\0', sizeof(bitmap));
+
+
+	//--------------------------------------------------
+	/* =====Initialize message queue===== */
+	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
+	key = ftok("./oss.c", 1);
+	mqueueid = msgget(key, IPC_CREAT | 0600);
+	if(mqueueid < 0)
+	{
+		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", exe_name);
+		cleanUp();
+		exit(EXIT_FAILURE);
+	}
+
+
+	//--------------------------------------------------
+	/* =====Initialize [shmclock] shared memory===== */
+	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [shmclock] shared memory
+	key = ftok("./oss.c", 2);
+	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
+	if(shmclock_shmid < 0)
+	{
+		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", exe_name);
+		cleanUp();
+		exit(EXIT_FAILURE);
+	}
+
+	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
+	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
+	if(shmclock_shmptr == (void *)( -1 ))
+	{
+		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
+		cleanUp();
+		exit(EXIT_FAILURE);	
+	}
+
+	//Initialize shared memory attribute of [shmclock] and forkclock
+	shmclock_shmptr->s = 0;
+	shmclock_shmptr->ns = 0;
+	forkclock.s = 0;
+	forkclock.ns = 0;
+
+	//--------------------------------------------------
+	/* =====Initialize semaphore===== */
+	//Creating 3 semaphores elements
+	//Create semaphore if doesn't exist with 666 bits permission. Return error if semaphore already exists
+	key = ftok("./oss.c", 3);
+	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
+	if(semid == -1)
+	{
+		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", exe_name);
+		cleanUp();
+		exit(EXIT_FAILURE);
+	}
+	
+	//Initialize the semaphore(s) in our set to 1
+	semctl(semid, 0, SETVAL, 1);	//Semaphore #0: for [shmclock] shared memory
+	
+
+	//--------------------------------------------------
+	/* =====Initialize process control block table===== */
+	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [pcbt] shared memory
+	key = ftok("./oss.c", 4);
+	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
+	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
+	if(pcbt_shmid < 0)
+	{
+		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", exe_name);
+		cleanUp();
+		exit(EXIT_FAILURE);
+	}
+
+	//Attaching shared memory and check if can attach it. If not, delete the [pcbt] shared memory
+	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
+	if(pcbt_shmptr == (void *)( -1 ))
+	{
+		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
+		cleanUp();
+		exit(EXIT_FAILURE);	
+	}
+}
+
+void freeIPC() {
 }
