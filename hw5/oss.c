@@ -109,7 +109,7 @@ void trySpawnProcess() {
 }
 
 void handleProcesses() {
-	int i, j = 0;
+	int i, count = 0;
 	QueueNode *next = queue->front;
 	
 	while (next != NULL) {
@@ -120,6 +120,7 @@ void handleProcesses() {
 		message.spid = index;
 		message.pid = system->ptable[index].pid;
 		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+
 		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
 
 		advanceClock();
@@ -130,7 +131,7 @@ void handleProcesses() {
 			queue_remove(queue, index);
 
 			next = queue->front;
-			for (i = 0; i < j; i++)
+			for (i = 0; i < count; i++)
 				next = (next->next != NULL) ? next->next : NULL;
 
 			continue;
@@ -139,10 +140,8 @@ void handleProcesses() {
 		if (message.request) {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
-			bool isSafe = safe(&data, system->ptable, queue, index);
-
 			message.type = system->ptable[index].pid;
-			message.safe = (isSafe) ? true : false;
+			message.safe = safe(&data, system->ptable, queue, index);
 			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 		}
 
@@ -150,7 +149,7 @@ void handleProcesses() {
 
 		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		
-		j++;
+		count++;
 
 		next = (next->next != NULL) ? next->next : NULL;
 	}
