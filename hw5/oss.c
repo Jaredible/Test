@@ -653,9 +653,8 @@ void initIPC() {
 	key_t key;
 
 	if ((key = ftok(".", 0)) == -1) crash("ftok");
-	if ((shmid = shmget(key, sizeof(Time), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
-	system = (System*) shmat(shmid, NULL, 0);
-	if (system == (void*) -1) crash("shmat");
+	if ((shmid = shmget(key, sizeof(System), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
+	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
 	if ((key = ftok(".", 1)) == -1) crash("ftok");
 	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
