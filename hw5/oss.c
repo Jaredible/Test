@@ -49,9 +49,8 @@ void semaLock(int);
 void semaRelease(int);
 void advanceClock();
 
-void initResource(ResourceDescriptor*);
-void displayResource(ResourceDescriptor);
-void updateResource(ResourceDescriptor*, PCB*);
+void initDescriptor(ResourceDescriptor*);
+void printDescriptor(ResourceDescriptor);
 
 void initSystem();
 void initPCB(pid_t, int);
@@ -202,8 +201,8 @@ int main(int argc, char **argv) {
 	initSystem();
 
 	queue = queue_create();
-	initResource(&data);
-	displayResource(data);
+	initDescriptor(&data);
+	printDescriptor(data);
 
 	registerSignalHandlers();
 
@@ -294,17 +293,15 @@ void advanceClock() {
 	semaRelease(0);
 }
 
-void initResource(ResourceDescriptor *data) {
+void initDescriptor(ResourceDescriptor *data) {
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
-	{
 		data->resource[i] = rand() % 10 + 1;
-	}
 
 	data->shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
 }
 
-void displayResource(ResourceDescriptor data) {
+void printDescriptor(ResourceDescriptor data) {
 	log("===Total Resource===\n<");
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
