@@ -43,24 +43,24 @@ static int exitCount = 0;
 
 static Queue *queue;
 static Time nextSpawn;
-static Data data;
+static ResourceDescriptor data;
 
 void semaLock(int);
 void semaRelease(int);
 void advanceClock();
 
-void initResource(Data*);
+void initResource(ResourceDescriptor*);
 void displayResource(Data);
-void updateResource(Data*, PCB*);
+void updateResource(ResourceDescriptor*, PCB*);
 
 void initSystem();
 void initPCB(pid_t, int);
 
 void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
-void calculateNeedMatrix(Data*, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
+void calculateNeedMatrix(ResourceDescriptor*, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void printVector(char*, char*, int vector[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
-bool safe(Data*, PCB*, Queue*, int);
+bool safe(ResourceDescriptor*, PCB*, Queue*, int);
 
 void init(int, char**);
 void error(char*, ...);
@@ -75,8 +75,8 @@ void finalize();
 void log(char*, ...);
 int findAvailablePID();
 
-bool verbose = false;
-pid_t pids[PROCESSES_MAX];
+static bool verbose = false;
+static pid_t pids[PROCESSES_MAX];
 
 void spawnProcess(int spid) {
 	pid_t pid = fork();
@@ -90,10 +90,10 @@ void spawnProcess(int spid) {
 		crash("execl");
 	}
 
-	activeCount++;
-	spawnCount++;
 	initPCB(pid, spid);
 	queue_push(queue, spid);
+	activeCount++;
+	spawnCount++;
 	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
 }
 
@@ -294,18 +294,17 @@ void advanceClock() {
 	semaRelease(0);
 }
 
-void initResource(Data *data) {
+void initResource(ResourceDescriptor *data) {
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
 	{
-		data->init[i] = rand() % 10 + 1;
-		data->resource[i] = data->init[i];
+		data->resource[i] = rand() % 10 + 1;
 	}
 
 	data->shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
 }
 
-void displayResource(Data data) {
+void displayResource(ResourceDescriptor data) {
 	log("===Total Resource===\n<");
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
@@ -338,7 +337,7 @@ void initPCB(pid_t pid, int spid) {
 
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++) {
-		pcb->maximum[i] = rand() % (data.init[i] + 1);
+		pcb->maximum[i] = rand() % (data.resource[i] + 1);
 		pcb->allocation[i] = 0;
 		pcb->request[i] = 0;
 		pcb->release[i] = 0;
@@ -371,7 +370,7 @@ void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][R
 	}
 }
 
-void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
+void calculateNeedMatrix(ResourceDescriptor *data, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
 	int i, j;
 	for (i = 0; i < count; i++)
 	{
@@ -423,7 +422,7 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 	}
 }
 
-bool safe(Data *data, PCB *pcbt, Queue *queue, int c_index) {
+bool safe(ResourceDescriptor *data, PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
 	//=====Check for null queue=====
