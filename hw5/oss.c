@@ -27,7 +27,7 @@
 
 /* Static GLOBAL variable (misc) */
 static FILE *fpw = NULL;
-static char *exe_name;
+static char *programName;
 static key_t key;
 static Queue *queue;
 static Time forkclock;
@@ -77,6 +77,7 @@ void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int m
 bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *pcbt, Queue *queue, int c_index);
 
 void init(int, char**);
+void error(char*, ...);
 void crash(char*);
 void usage(int);
 void registerSignalHandlers();
@@ -88,6 +89,8 @@ void cleanup();
 bool verbose = false;
 
 int main(int argc, char **argv) {
+	init(argc, argv);
+	
 	srand(time(NULL) ^ getpid());
 
 	bool ok = false;
@@ -190,7 +193,7 @@ int main(int argc, char **argv) {
 
 				if (pid == -1)
 				{
-					fprintf(stderr, "%s (Master) ERROR: %s\n", exe_name, strerror(errno));
+					fprintf(stderr, "%s (Master) ERROR: %s\n", programName, strerror(errno));
 					finalize();
 					cleanUp();
 					exit(0);
@@ -207,7 +210,7 @@ int main(int argc, char **argv) {
 					int exect_status = execl("./user", "./user", exec_index, NULL);
 					if (exect_status == -1)
 					{
-						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", exe_name, last_index);
+						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", programName, last_index);
 					}
 
 					finalize();
@@ -229,9 +232,9 @@ int main(int argc, char **argv) {
 					queue_push(queue, last_index);
 
 					//Display creation time
-					fprintf(stderr, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name,
+					fprintf(stderr, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
 							pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
-					fprintf(fpw, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name,
+					fprintf(fpw, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
 							pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
 					fflush(fpw);
 				}
@@ -272,9 +275,9 @@ int main(int argc, char **argv) {
 			if (master_message.flag == 0)
 			{
 				fprintf(stderr, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						exe_name, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
+						programName, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
 				fprintf(fpw, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						exe_name, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
+						programName, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
 				fflush(fpw);
 
 				//Remove the process out of the queue
@@ -320,9 +323,9 @@ int main(int argc, char **argv) {
 			if (master_message.isRequest == true)
 			{
 				fprintf(stderr, "%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n",
-						exe_name, master_message.index, master_message.childPid);
+						programName, master_message.index, master_message.childPid);
 				fprintf(fpw, "%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n",
-						exe_name, master_message.index, master_message.childPid);
+						programName, master_message.index, master_message.childPid);
 				fflush(fpw);
 
 				//Execute the Banker Algorithm
@@ -341,9 +344,9 @@ int main(int argc, char **argv) {
 			if (master_message.isRelease)
 			{
 				fprintf(stderr, "%s: process with PID (%d) [%d] is RELEASING allocated resources.\n",
-						exe_name, master_message.index, master_message.childPid);
+						programName, master_message.index, master_message.childPid);
 				fprintf(fpw, "%s: process with PID (%d) [%d] is RELEASING allocated resources.\n",
-						exe_name, master_message.index, master_message.childPid);
+						programName, master_message.index, master_message.childPid);
 				fflush(fpw);
 			}
 
@@ -526,7 +529,7 @@ void cleanUp()
 	}
 
 	//Release and delete [shmclock] shared memory
-	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", exe_name, "Master");
+	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", programName, "Master");
 
 	//Delete semaphore
 	if (semid > 0)
@@ -535,7 +538,7 @@ void cleanUp()
 	}
 
 	//Release and delete [pcbt] shared memory
-	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", exe_name, "Master");
+	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", programName, "Master");
 }
 
 /* ====================================================================================================
@@ -956,7 +959,7 @@ void initIPC() {
 	mqueueid = msgget(key, IPC_CREAT | 0600);
 	if(mqueueid < 0)
 	{
-		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -969,7 +972,7 @@ void initIPC() {
 	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
 	if(shmclock_shmid < 0)
 	{
-		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -978,7 +981,7 @@ void initIPC() {
 	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
 	if(shmclock_shmptr == (void *)( -1 ))
 	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);	
 	}
@@ -997,7 +1000,7 @@ void initIPC() {
 	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
 	if(semid == -1)
 	{
-		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -1014,7 +1017,7 @@ void initIPC() {
 	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
 	if(pcbt_shmid < 0)
 	{
-		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -1023,11 +1026,52 @@ void initIPC() {
 	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
 	if(pcbt_shmptr == (void *)( -1 ))
 	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);	
 	}
 }
 
 void freeIPC() {
+}
+
+void crash(char *msg) {
+	char buf[BUFFER_LENGTH];
+	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
+	perror(buf);
+	
+	cleanup();
+	
+	exit(EXIT_FAILURE);
+}
+
+void error(char *fmt, ...) {
+	char buf[BUFFER_LENGTH];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
+	va_end(args);
+	
+	fprintf(stderr, "%s: %s\n", programName, buf);
+	
+	cleanup();
+}
+
+void usage(int status) {
+	if (status != EXIT_SUCCESS) fprintf(stderr, "Try '%s -h' for more information\n", programName);
+	else {
+		printf("Usage: %s [-v]\n", programName);
+		printf("    -v : verbose on\n");
+	}
+	exit(status);
+}
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+}
+
+void cleanup() {
 }
