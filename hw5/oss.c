@@ -52,8 +52,7 @@ static pid_t pid = -1;
 /* -------------------------------------------------- */
 
 /* Prototype Function */
-void masterHandler(int);
-void exitHandler(int);
+void signalHandler(int);
 void semaLock(int);
 void semaRelease(int);
 void incShmclock();
@@ -154,7 +153,6 @@ int main(int argc, char **argv) {
 
 				if (pid == -1) crash("fork");
 				else if (pid == 0) {
-					signal(SIGUSR1, exitHandler);
 					char exec_index[BUFFER_LENGTH];
 					sprintf(exec_index, "%d", spid);
 					execl("./user", "./user", exec_index, NULL);
@@ -252,7 +250,7 @@ int main(int argc, char **argv) {
 
 		if (fork_number >= PROCESSES_TOTAL) {
 			timer(0);
-			masterHandler(0);
+			signalHandler(0);
 		}
 	}
 
@@ -264,13 +262,13 @@ void registerSignalHandlers() {
 
 	struct sigaction sa1;
 	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &masterHandler;
+	sa1.sa_handler = &signalHandler;
 	sa1.sa_flags = SA_RESTART;
 	if (sigaction(SIGALRM, &sa1, NULL) == -1) crash("sigaction");
 
 	struct sigaction sa2;
 	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &masterHandler;
+	sa2.sa_handler = &signalHandler;
 	sa2.sa_flags = SA_RESTART;
 	if (sigaction(SIGINT, &sa2, NULL) == -1) crash("sigaction");
 
@@ -278,7 +276,7 @@ void registerSignalHandlers() {
 	signal(SIGUSR1, SIG_IGN);
 }
 
-void masterHandler(int signum)
+void signalHandler(int signum)
 {
 	finalize();
 
@@ -287,12 +285,6 @@ void masterHandler(int signum)
 
 	cleanup();
 
-	exit(EXIT_SUCCESS);
-}
-
-void exitHandler(int signum)
-{
-//	printf("%d: Terminated!\n", getpid());
 	exit(EXIT_SUCCESS);
 }
 
@@ -305,11 +297,6 @@ void finalize()
 	{
 		p = waitpid(-1, NULL, WNOHANG);
 	}
-}
-
-void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type) {
-	if (shmaddr != NULL && shmdt(shmaddr) == -1) crash("shmdt");
-	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
 }
 
 void semaLock(int sem_index)
