@@ -277,7 +277,7 @@ int main(int argc, char **argv) {
 				log("%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n");
 
 				//Execute the Banker Algorithm
-				bool isSafe = bankerAlgorithm(0, verbose, &data, pcbt_shmptr, queue, c_index);
+				bool isSafe = bankerAlgorithm(verbose, &data, pcbt_shmptr, queue, c_index);
 
 				//Send a message to child process whether if it safe to proceed the request OR not
 				master_message.mtype = pcbt_shmptr[c_index].pid;
