@@ -131,8 +131,6 @@ int main(int argc, char **argv) {
 
 	registerSignalHandlers();
 
-	timer(TIMEOUT);
-
 	while (true) {
 		//int spawn_nano = rand() % 500000000 + 1000000;
 		int spawn_nano = 100;
@@ -252,8 +250,20 @@ int main(int argc, char **argv) {
 }
 
 void registerSignalHandlers() {
-	signal(SIGINT, signalHandler);
-	signal(SIGALRM, signalHandler);
+	timer(TIMEOUT);
+
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
+
+	signal(SIGUSR1, SIG_IGN);
 }
 
 void signalHandler(int signum)
@@ -271,7 +281,7 @@ void signalHandler(int signum)
 void finalize()
 {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
-	kill(0, SIGTERM);
+	kill(0, SIGUSR1);
 	pid_t p = 0;
 	while (p >= 0)
 	{
