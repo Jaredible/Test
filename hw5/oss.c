@@ -266,8 +266,7 @@ void registerSignalHandlers() {
 	signal(SIGUSR1, SIG_IGN);
 }
 
-void signalHandler(int signum)
-{
+void signalHandler(int sig) {
 	finalize();
 
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
