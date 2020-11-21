@@ -12,7 +12,7 @@
 #include "queue.h"
 
 Queue *queue_create() {
-	Queue *queue = (struct Queue*) malloc(sizeof(Queue));
+	Queue *queue = (Queue*) malloc(sizeof(Queue));
 	queue->front = NULL;
 	queue->rear = NULL;
 	queue->count = 0;
