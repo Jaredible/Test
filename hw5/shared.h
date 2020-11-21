@@ -19,7 +19,7 @@
 #define KEY_ID_MESSAGE_QUEUE 2
 #define PERMS (S_IRUSR | S_IWUSR)
 
-#define LOG_PATH "./output.log"
+#define PATH_LOG "./output.log"
 #define TIMEOUT 10
 #define PROCESSES_MAX 18
 #define PROCESSES_TOTAL 40

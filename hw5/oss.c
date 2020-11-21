@@ -122,6 +122,12 @@ int main(int argc, char **argv) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
+	fpw = fopen(PATH_LOG, "w");
+	if(fpw == NULL) {
+		fprintf(stderr, "%s ERROR: unable to write the output file.\n", programName);
+		exit(EXIT_FAILURE);
+	}
+
 	timer(TIMEOUT);
 
 	memset(bitmap, '\0', sizeof(bitmap));
