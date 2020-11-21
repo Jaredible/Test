@@ -98,10 +98,7 @@ void test() {
 
 			QueueNode *current = queue->front;
 			while (current != NULL) {
-				if (current->index != c_index) {
-					queue_push(temp, current->index);
-				}
-
+				if (current->index != c_index) queue_push(temp, current->index);
 				current = (current->next != NULL) ? current->next : NULL;
 			}
 

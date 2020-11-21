@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	exit(spid);
+	return spid;
 }
 
 void processInterrupt()
