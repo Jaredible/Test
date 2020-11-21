@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
 
 				activeCount++;
 				spawnCount++;
-				initPCB(spid, pid);
+				initPCB(pid, spid);
 				queue_push(queue, spid);
 				log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
 			}
