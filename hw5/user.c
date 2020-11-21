@@ -24,9 +24,9 @@
 
 #include "shared.h"
 
-static char *exe_name;
-static int exe_index;
-static key_t key;
+static char *programName;
+
+static int spid;
 
 static int shmid = -1;
 static int msqid = -1;
@@ -40,14 +40,15 @@ void resumeHandler(int signum);
 
 void initIPC();
 void crash(char*);
+void init(int, char**);
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char **argv) {
+	init(argc, argv);
+
 	processInterrupt();
 
 	int i;
-	exe_name = argv[0];
-	exe_index = atoi(argv[1]);
+	spid = atoi(argv[1]);
 	srand(getpid());
 
 	initIPC();
@@ -89,7 +90,7 @@ int main(int argc, char *argv[])
 
 			if (!is_requesting) {
 				for (i = 0; i < RESOURCES_MAX; i++) {
-					system->ptable[exe_index].request[i] = rand() % (system->ptable[exe_index].maximum[i] - system->ptable[exe_index].allocation[i] + 1);
+					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
 				}
 				is_requesting = true;
 			}
@@ -97,7 +98,7 @@ int main(int argc, char *argv[])
 		else if (choice == 1) {
 			if (is_acquire) {
 				for (i = 0; i < RESOURCES_MAX; i++) {
-					system->ptable[exe_index].release[i] = system->ptable[exe_index].allocation[i];
+					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
 				}
 				is_releasing = true;
 			}
@@ -120,8 +121,8 @@ int main(int argc, char *argv[])
 				if (message.safe == true) {
 					for (i = 0; i < RESOURCES_MAX; i++)
 					{
-						system->ptable[exe_index].allocation[i] += system->ptable[exe_index].request[i];
-						system->ptable[exe_index].request[i] = 0;
+						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
+						system->ptable[spid].request[i] = 0;
 					}
 					is_requesting = false;
 					is_acquire = true;
@@ -130,15 +131,15 @@ int main(int argc, char *argv[])
 
 			if (is_releasing) {
 				for (i = 0; i < RESOURCES_MAX; i++) {
-					system->ptable[exe_index].allocation[i] -= system->ptable[exe_index].release[i];
-					system->ptable[exe_index].release[i] = 0;
+					system->ptable[spid].allocation[i] -= system->ptable[spid].release[i];
+					system->ptable[spid].release[i] = 0;
 				}
 				is_acquire = false;
 			}
 		}
 	}
 
-	exit(exe_index);
+	exit(spid);
 }
 
 void processInterrupt()
@@ -164,7 +165,6 @@ void processInterrupt()
 void processHandler(int signum)
 {
 	printf("%d: Terminated!\n", getpid());
-	cleanUp();
 	exit(2);
 }
 
@@ -188,4 +188,11 @@ void crash(char *msg) {
 	freeIPC();
 	
 	exit(EXIT_FAILURE);
+}
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 }
