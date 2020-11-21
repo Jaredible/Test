@@ -47,7 +47,7 @@ static Data data;
 
 void semaLock(int);
 void semaRelease(int);
-void incShmclock();
+void advanceClock();
 
 void initResource(Data*);
 void displayResource(Data);
@@ -111,37 +111,23 @@ void trySpawnProcess() {
 void handleProcesses() {
 	int i, j = 0;
 	QueueNode *next = queue->front;
-	Queue *temp = queue_create();
 	
 	while (next != NULL) {
-		incShmclock();
+		advanceClock();
 
-		int c_index = next->index;
-		message.type = system->ptable[c_index].pid;
-		message.spid = c_index;
-		message.pid = system->ptable[c_index].pid;
+		int index = next->index;
+		message.type = system->ptable[index].pid;
+		message.spid = index;
+		message.pid = system->ptable[index].pid;
 		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
 
-		incShmclock();
+		advanceClock();
 
 		if (message.terminate == TERMINATE) {
 			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
-			QueueNode *current = queue->front;
-			while (current != NULL) {
-				if (current->index != c_index) queue_push(temp, current->index);
-				current = (current->next != NULL) ? current->next : NULL;
-			}
-
-			while (!queue_empty(queue)) {
-				queue_pop(queue);
-			}
-			while (!queue_empty(temp)) {
-				int i = temp->front->index;
-				queue_push(queue, i);
-				queue_pop(temp);
-			}
+			queue_remove(queue, index);
 
 			next = queue->front;
 			for (i = 0; i < j; i++)
@@ -153,25 +139,21 @@ void handleProcesses() {
 		if (message.request) {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
-			bool isSafe = safe(&data, system->ptable, queue, c_index);
+			bool isSafe = safe(&data, system->ptable, queue, index);
 
-			message.type = system->ptable[c_index].pid;
+			message.type = system->ptable[index].pid;
 			message.safe = (isSafe) ? true : false;
 			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 		}
 
-		incShmclock();
+		advanceClock();
 
-		if (message.release) {
-			log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-		}
-
+		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		
 		j++;
 
 		next = (next->next != NULL) ? next->next : NULL;
 	}
-
-	free(temp);
 }
 
 int main(int argc, char **argv) {
@@ -232,11 +214,11 @@ int main(int argc, char **argv) {
 	while (true) {
 		trySpawnProcess();
 
-		incShmclock();
+		advanceClock();
 
 		handleProcesses();
 
-		incShmclock();
+		advanceClock();
 
 		int status;
 		pid_t pid = waitpid(-1, &status, WNOHANG);
@@ -300,7 +282,7 @@ void semaRelease(const int index) {
 	semop(semid, &sop, 1);
 }
 
-void incShmclock() {
+void advanceClock() {
 	semaLock(0);
 	int r_nano = rand() % 1000000 + 1;
 

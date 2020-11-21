@@ -47,6 +47,22 @@ QueueNode *queue_pop(Queue *queue) {
 	return temp;
 }
 
+void queue_remove(Queue *queue, int index) {
+	Queue *temp = queue_create();
+	QueueNode *current = queue->front;
+	while (current != NULL) {
+		if (current->index != index) queue_push(temp, current->index);
+		current = (current->next != NULL) ? current->next : NULL;
+	}
+	while (!queue_empty(queue))
+		queue_pop(queue);
+	while (!queue_empty(temp)) {
+		queue_push(queue, index);
+		queue_pop(temp);
+	}
+	free(temp);
+}
+
 bool queue_empty(Queue *queue) {
 	if (queue->rear == NULL) return true;
 	return false;
