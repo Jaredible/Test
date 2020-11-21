@@ -425,7 +425,6 @@ bool safe(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 	int avail[RESOURCES_MAX];
 
 	//Setting up matrix base on given queue and process control block table
-	QueueNode next;
 	next.next = queue->front;
 
 	int i, j;
