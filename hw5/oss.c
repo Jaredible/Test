@@ -267,7 +267,6 @@ int main(int argc, char **argv) {
 				while (!queue_empty(trackingQueue))
 				{
 					int i = trackingQueue->front->index;
-					//DEBUG fprintf(stderr, "Tracking Queue i: %d\n", i);
 					queue_push(queue, i);
 					queue_pop(trackingQueue);
 				}
@@ -281,7 +280,6 @@ int main(int argc, char **argv) {
 				}
 				continue;
 			}
-			//DEBUG fprintf(fpw, "%s: continue | process with PID (%d) [%d], c:%d\n", exe_name, master_message.index, master_message.childPid, c_index);
 
 			//If process is requesting resources, execute the Banker Algorithm
 			//If not, simply add the current process to the tracking queue and point the pointer to the next queue element
@@ -557,24 +555,20 @@ void initResource(Data *data)
 
 void displayResource(FILE *fpw, Data data)
 {
-	fprintf(stderr, "===Total Resource===\n<");
-	fprintf(fpw, "===Total Resource===\n<");
+	log("===Total Resource===\n<");
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
 	{
 		log("%2d", data.resource[i]);
-		fprintf(fpw, "%2d", data.resource[i]);
 
 		if (i < RESOURCES_MAX - 1)
 		{
-			fprintf(stderr, " | ");
-			fprintf(fpw, " | ");
+			log(" | ");
 		}
 	}
 	log(">\n\n");
 
-	fprintf(stderr, "Sharable Resources: %d\n\n", data.shared);
-	fprintf(fpw, "Sharable Resources: %d\n", data.shared);
+	log("Sharable Resources: %d\n", data.shared);
 	fflush(fpw);
 }
 
@@ -644,24 +638,19 @@ void calculateNeedMatrix(Data *data, int need[][RESOURCES_MAX], int maxm[][RESOU
 
 void displayVector(FILE *fpw, int *line_count, char *v_name, char *l_name, int vector[RESOURCES_MAX])
 {
-	fprintf(stderr, "===%s Resource===\n%3s :  <", v_name, l_name);
-	fprintf(fpw, "===%s Resource===\n%3s :  <", v_name, l_name);
+	log("===%s Resource===\n%3s :  <", v_name, l_name);
 
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
 	{
-		fprintf(stderr, "%2d", vector[i]);
-		fprintf(fpw, "%2d", vector[i]);
+		log("%2d", vector[i]);
 
 		if (i < RESOURCES_MAX - 1)
 		{
-			fprintf(stderr, " | ");
-			fprintf(fpw, " | ");
+			log(" | ");
 		}
 	}
-	fprintf(stderr, ">\n");
-	fprintf(fpw, ">\n");
-	fflush(fpw);
+	log(">\n");
 }
 
 void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count)
@@ -670,27 +659,21 @@ void displayMatrix(FILE *fpw, int *line_count, char *m_name, Queue *queue, int m
 	next.next = queue->front;
 
 	int i, j;
-	fprintf(stderr, "===%s Matrix===\n", m_name);
-	fprintf(fpw, "===%s Matrix===\n", m_name);
+	log("===%s Matrix===\n", m_name);
 
 	for (i = 0; i < count; i++)
 	{
-		fprintf(stderr, "P%2d :  <", next.next->index);
-		fprintf(fpw, "P%2d :  <", next.next->index);
+		log("P%2d :  <", next.next->index);
 		for (j = 0; j < RESOURCES_MAX; j++)
 		{
-			fprintf(stderr, "%2d", matrix[i][j]);
-			fprintf(fpw, "%2d", matrix[i][j]);
+			log("%2d", matrix[i][j]);
 
 			if (j < RESOURCES_MAX - 1)
 			{
-				fprintf(stderr, " | ");
-				fprintf(fpw, " | ");
+				log(" | ");
 			}
 		}
-		fprintf(stderr, ">\n");
-		fprintf(fpw, ">\n");
-		fflush(fpw);
+		log(">\n");
 
 		next.next = (next.next->next != NULL) ? next.next->next : NULL;
 	}
@@ -752,7 +735,6 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 		//Point the pointer to the next queue element
 		next.next = (next.next->next != NULL) ? next.next->next : NULL;
 	}
-	//DEBUG fprintf(fpw, "NEED index: %d\n", idx);
 
 	//Display information
 	if (verbose)
@@ -782,9 +764,7 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 		//Check to see if the process is not asking for more than it will ever need
 		if (need[idx][j] < req[j] && j < data->shared)
 		{
-			fprintf(stderr, "NOTICE: Asked for more than initial max request.\n");
-			fprintf(fpw, "NOTICE: Asked for more than initial max request.\n");
-			fflush(fpw);
+			log("NOTICE: Asked for more than initial max request.\n");
 
 			//Display information
 			if (verbose)
@@ -803,9 +783,7 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 		}
 		else
 		{
-			fprintf(stderr, "NOTICE: Not enough available resources!\n");
-			fprintf(fpw, "NOTICE: Not enough available resources!\n");
-			fflush(fpw);
+			log("NOTICE: Not enough available resources!\n");
 
 			//Display information
 			if (verbose)
@@ -860,9 +838,7 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 		//If we could not find a next process in safe sequence.
 		if (found == false)
 		{
-			fprintf(stderr, "System is in UNSAFE (not safe) state\n");
-			fprintf(fpw, "System is in UNSAFE (not safe) state\n");
-			fflush(fpw);
+			log("System is in UNSAFE (not safe) state\n");
 			return false;
 		}
 	} //END OF: index < count
@@ -887,16 +863,12 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 	}
 
 	//If system is in safe state then safe sequence will be as below
-	fprintf(stderr, "System is in SAFE state. Safe sequence is: ");
-	fprintf(fpw, "System is in SAFE state. Safe sequence is: ");
+	log("System is in SAFE state. Safe sequence is: ");
 	for (i = 0; i < count; i++)
 	{
-		fprintf(stderr, "%2d ", sequence[safeSeq[i]]);
-		fprintf(fpw, "%2d ", sequence[safeSeq[i]]);
+		log("%2d ", sequence[safeSeq[i]]);
 	}
-	fprintf(stderr, "\n\n");
-	fprintf(fpw, "\n");
-	fflush(fpw);
+	log("\n\n");
 
 	return true;
 }
