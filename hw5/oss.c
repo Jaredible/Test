@@ -43,23 +43,23 @@ static int exitCount = 0;
 
 static Queue *queue;
 static Time nextSpawn;
-static ResourceDescriptor data;
+static ResourceDescriptor descriptor;
 
 void semaLock(int);
 void semaRelease(int);
 void advanceClock();
 
-void initDescriptor(ResourceDescriptor*);
-void printDescriptor(ResourceDescriptor);
+void initDescriptor();
+void printDescriptor();
 
 void initSystem();
 void initPCB(pid_t, int);
 
 void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
-void calculateNeedMatrix(ResourceDescriptor*, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
+void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void printVector(char*, char*, int vector[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
-bool safe(ResourceDescriptor*, PCB*, Queue*, int);
+bool safe(PCB*, Queue*, int);
 
 void init(int, char**);
 void error(char*, ...);
@@ -137,7 +137,7 @@ void handleProcesses() {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			message.type = system->ptable[index].pid;
-			message.safe = safe(&data, system->ptable, queue, index);
+			message.safe = safe(system->ptable, queue, index);
 			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 		}
 
@@ -201,8 +201,8 @@ int main(int argc, char **argv) {
 	initSystem();
 
 	queue = queue_create();
-	initDescriptor(&data);
-	printDescriptor(data);
+	initDescriptor();
+	printDescriptor();
 
 	registerSignalHandlers();
 
@@ -292,29 +292,25 @@ void advanceClock() {
 	semaRelease(0);
 }
 
-void initDescriptor(ResourceDescriptor *data) {
+void initDescriptor() {
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
-		data->resource[i] = rand() % 10 + 1;
+		descriptor.resource[i] = rand() % 10 + 1;
 
-	data->shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
+	descriptor.shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
 }
 
-void printDescriptor(ResourceDescriptor data) {
-	log("===Total Resource===\n<");
-	int i;
-	for (i = 0; i < RESOURCES_MAX; i++)
-	{
-		log("%2d", data.resource[i]);
+void printDescriptor() {
+	log("Total Resource\n<");
 
-		if (i < RESOURCES_MAX - 1)
-		{
-			log(" | ");
-		}
+	int i;
+	for (i = 0; i < RESOURCES_MAX; i++) {
+		log("%2d", descriptor.resource[i]);
+		if (i < RESOURCES_MAX - 1) log(" | ");
 	}
 	log(">\n\n");
 
-	log("Sharable Resources: %d\n", data.shared);
+	log("Shareable resources: %d\n", descriptor.shared);
 }
 
 void initSystem() {
@@ -333,7 +329,7 @@ void initPCB(pid_t pid, int spid) {
 
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++) {
-		pcb->maximum[i] = rand() % (data.resource[i] + 1);
+		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
 		pcb->allocation[i] = 0;
 		pcb->request[i] = 0;
 		pcb->release[i] = 0;
@@ -366,7 +362,7 @@ void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][R
 	}
 }
 
-void calculateNeedMatrix(ResourceDescriptor *data, int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
+void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
 	int i, j;
 	for (i = 0; i < count; i++)
 	{
@@ -418,7 +414,7 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 	}
 }
 
-bool safe(ResourceDescriptor *data, PCB *pcbt, Queue *queue, int c_index) {
+bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
 	//=====Check for null queue=====
@@ -442,12 +438,12 @@ bool safe(ResourceDescriptor *data, PCB *pcbt, Queue *queue, int c_index) {
 	setMatrix(pcbt, queue, maxm, allot, count);
 
 	//Calculate need matrix
-	calculateNeedMatrix(data, need, maxm, allot, count);
+	calculateNeedMatrix(need, maxm, allot, count);
 
 	//Setting up available vector and request vector
 	for (i = 0; i < RESOURCES_MAX; i++)
 	{
-		avail[i] = data->resource[i];
+		avail[i] = descriptor.resource[i];
 		req[i] = pcbt[c_index].request[i];
 	}
 
@@ -501,7 +497,7 @@ bool safe(ResourceDescriptor *data, PCB *pcbt, Queue *queue, int c_index) {
 	for (j = 0; j < RESOURCES_MAX; j++)
 	{
 		//Check to see if the process is not asking for more than it will ever need
-		if (need[idx][j] < req[j] && j < data->shared)
+		if (need[idx][j] < req[j] && j < descriptor.shared)
 		{
 			log("\tAsked for more than initial max request\n");
 
@@ -514,7 +510,7 @@ bool safe(ResourceDescriptor *data, PCB *pcbt, Queue *queue, int c_index) {
 			return false;
 		}
 
-		if (req[j] <= avail[j] && j < data->shared)
+		if (req[j] <= avail[j] && j < descriptor.shared)
 		{
 			avail[j] -= req[j];
 			allot[idx][j] += req[j];
@@ -549,7 +545,7 @@ bool safe(ResourceDescriptor *data, PCB *pcbt, Queue *queue, int c_index) {
 				//Check if for all resources of current process need is less than work
 				for (j = 0; j < RESOURCES_MAX; j++)
 				{
-					if (need[p][j] > work[j] && data->shared)
+					if (need[p][j] > work[j] && descriptor.shared)
 					{
 						break;
 					}
