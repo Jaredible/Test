@@ -50,7 +50,6 @@ static PCB *pcbt_shmptr = NULL;
 /* Static GLOBAL variable (fork) */
 static int fork_number = 0;
 static pid_t pid = -1;
-static unsigned char bitmap[PROCESSES_MAX];
 /* -------------------------------------------------- */
 
 /* Prototype Function */
@@ -88,8 +87,10 @@ void initIPC();
 void freeIPC();
 void cleanup();
 void log(char*, ...);
+int findAvailablePID();
 
 bool verbose = false;
+pid_t pids[PROCESSES_MAX];
 
 int main(int argc, char **argv) {
 	init(argc, argv);
@@ -133,8 +134,6 @@ int main(int argc, char **argv) {
 
 	timer(TIMEOUT);
 
-	memset(bitmap, '\0', sizeof(bitmap));
-
 	initIPC();
 
 	shmclock_shmptr->s = 0;
@@ -158,8 +157,6 @@ int main(int argc, char **argv) {
 
 	//--------------------------------------------------
 	/* =====Multi Processes===== */
-	int last_index = -1;
-	bool is_bitmap_open = false;
 	while (1)
 	{
 		//int spawn_nano = rand() % 500000000 + 1000000;
@@ -169,35 +166,10 @@ int main(int argc, char **argv) {
 			//Reset forkclock
 			forkclock.ns = 0;
 
-			//Do bitmap has an open spot?
-			is_bitmap_open = false;
-			int count_process = 0;
-			while (1)
-			{
-				last_index = (last_index + 1) % PROCESSES_MAX;
-				uint32_t bit = bitmap[last_index / 8] & (1 << (last_index % 8));
-				if (bit == 0)
-				{
-					is_bitmap_open = true;
-					break;
-				}
-				else
-				{
-					is_bitmap_open = false;
-				}
-
-				if (count_process >= PROCESSES_MAX - 1)
-				{
-					//DEBUG: fprintf(stderr, "%s: bitmap is full (size: %d)\n", exe_name, MAX_PROCESS);
-					break;
-				}
-				count_process++;
-			}
-
-			//Continue to fork if there are still space in the bitmap
-			if (is_bitmap_open == true)
-			{
+			int spid = findAvailablePID();
+			if (spid >= 0) {
 				pid = fork();
+				pids[spid] = pid;
 
 				if (pid == -1)
 				{
@@ -207,43 +179,37 @@ int main(int argc, char **argv) {
 					exit(0);
 				}
 
-				if (pid == 0) //Child
-				{
+				if (pid == 0) {
 					//Simple signal handler: this is for mis-synchronization when timer fire off
 					signal(SIGUSR1, exitHandler);
 
 					//Replaces the current running process with a new process (user)
 					char exec_index[BUFFER_LENGTH];
-					sprintf(exec_index, "%d", last_index);
+					sprintf(exec_index, "%d", spid);
 					int exect_status = execl("./user", "./user", exec_index, NULL);
 					if (exect_status == -1)
 					{
-						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", programName, last_index);
+						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", programName, spid);
 					}
 
 					finalize();
 					cleanUp();
 					exit(EXIT_FAILURE);
-				}
-				else //Parent
-				{
+				} else {
 					//Increment the total number of fork in execution
 					fork_number++;
 
-					//Set the current index to one bit (meaning it is taken)
-					bitmap[last_index / 8] |= (1 << (last_index % 8));
-
 					//Initialize user process information to the process control block table
-					initPCB(&pcbt_shmptr[last_index], last_index, pid, data);
+					initPCB(&pcbt_shmptr[spid], spid, pid, data);
 
 					//Add the process to highest queue
-					queue_push(queue, last_index);
+					queue_push(queue, spid);
 
 					//Display creation time
 					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n");
 				}
-			} //END OF: is_bitmap_open if check
-		}	  //END OF: forkclock.nanosecond if check
+			}
+		}
 
 		//- CRITICAL SECTION -//
 		incShmclock();
@@ -361,7 +327,7 @@ int main(int argc, char **argv) {
 		if (child_pid > 0)
 		{
 			int return_index = WEXITSTATUS(child_status);
-			bitmap[return_index / 8] &= ~(1 << (return_index % 8));
+			pids[return_index] = -1;
 		}
 
 		//--------------------------------------------------
@@ -937,12 +903,6 @@ bool bankerAlgorithm(FILE *fpw, int *line_count, bool verbose, Data *data, PCB *
 
 void initIPC() {
 	//--------------------------------------------------
-	/* =====Initialize BITMAP===== */
-	//Zero out all elements of bit map
-	memset(bitmap, '\0', sizeof(bitmap));
-
-
-	//--------------------------------------------------
 	/* =====Initialize message queue===== */
 	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
 	key = ftok("./oss.c", 1);
@@ -1075,4 +1035,11 @@ void log(char *fmt, ...) {
 
 	fprintf(stderr, buf);
 	fprintf(fpw, buf);
+}
+
+int findAvailablePID() {
+	int i;
+	for (i = 0; i < PROCESSES_MAX; i++)
+		if (pids[i] == 0) return i;
+	return -1;
 }
