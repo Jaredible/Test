@@ -8,7 +8,7 @@
 
 #include <stdbool.h>
 
-#define log _log
+#define system _system
 
 #define BUFFER_LENGTH 1024
 #define FILE_LENGTH_MAX 100000
