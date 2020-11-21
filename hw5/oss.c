@@ -279,15 +279,10 @@ void signalHandler(int sig) {
 	exit(EXIT_SUCCESS);
 }
 
-void finalize()
-{
+void finalize() {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
 	kill(0, SIGUSR1);
-	pid_t p = 0;
-	while (p >= 0)
-	{
-		p = waitpid(-1, NULL, WNOHANG);
-	}
+	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
 
 void semaLock(int index) {
