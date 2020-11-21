@@ -36,7 +36,10 @@ static int semid = -1;
 static System *system = NULL;
 static Message message;
 
-static int fork_number = 0;
+static int activeCount = 0;
+static int spawnCount = 0;
+static int exitCount = 0;
+
 static pid_t pid = -1;
 
 static Queue *queue;
@@ -201,7 +204,6 @@ int main(int argc, char **argv) {
 		//int spawn_nano = rand() % 500000000 + 1000000;
 		int spawn_nano = 100;
 		if (forkclock.ns >= spawn_nano) {
-			//Reset forkclock
 			forkclock.ns = 0;
 
 			int spid = findAvailablePID();
@@ -217,7 +219,8 @@ int main(int argc, char **argv) {
 					crash("execl");
 				}
 
-				fork_number++;
+				activeCount++;
+				spawnCount++;
 				initPCB(&system->ptable[spid], spid, pid, data);
 				queue_push(queue, spid);
 				log("%s: [%d.%d] p%d created\n", programName, system->clock.s, system->clock.ns, spid);
@@ -230,15 +233,16 @@ int main(int argc, char **argv) {
 
 		incShmclock();
 
-		int child_status = 0;
-		pid_t child_pid = waitpid(-1, &child_status, WNOHANG);
-
-		if (child_pid > 0) {
-			int return_index = WEXITSTATUS(child_status);
-			pids[return_index] = 0;
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
 		}
 
-		if (fork_number >= PROCESSES_TOTAL) {
+		if (spawnCount >= PROCESSES_TOTAL) {
 			timer(0);
 			signalHandler(0);
 		}
@@ -268,7 +272,7 @@ void signalHandler(int sig) {
 	finalize();
 
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
-	fprintf(stderr, "Total processes executed: %d\n", fork_number);
+	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 
 	freeIPC();
 
