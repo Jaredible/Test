@@ -77,6 +77,32 @@ int findAvailablePID();
 static bool verbose = false;
 static pid_t pids[PROCESSES_MAX];
 
+void simulate() {
+	while (true) {
+		trySpawnProcess();
+
+		advanceClock();
+
+		handleProcesses();
+
+		advanceClock();
+
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
+		}
+
+		if (spawnCount >= PROCESSES_TOTAL) {
+			timer(0);
+			signalHandler(0);
+		}
+	}
+}
+
 void spawnProcess(int spid) {
 	pid_t pid = fork();
 	pids[spid] = pid;
@@ -206,29 +232,7 @@ int main(int argc, char **argv) {
 
 	registerSignalHandlers();
 
-	while (true) {
-		trySpawnProcess();
-
-		advanceClock();
-
-		handleProcesses();
-
-		advanceClock();
-
-		int status;
-		pid_t pid = waitpid(-1, &status, WNOHANG);
-		if (pid > 0) {
-			int spid = WEXITSTATUS(status);
-			pids[spid] = 0;
-			activeCount--;
-			exitCount++;
-		}
-
-		if (spawnCount >= PROCESSES_TOTAL) {
-			timer(0);
-			signalHandler(0);
-		}
-	}
+	simulate();
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
