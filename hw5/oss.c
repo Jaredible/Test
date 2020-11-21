@@ -711,7 +711,7 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 		//Check to see if the process is not asking for more than it will ever need
 		if (need[idx][j] < req[j] && j < data->shared)
 		{
-			log("Asked for more than initial max request\n");
+			log("\tAsked for more than initial max request\n");
 
 			//Display information
 			if (verbose)
@@ -730,7 +730,7 @@ bool bankerAlgorithm(Data *data, PCB *pcbt, Queue *queue, int c_index) {
 		}
 		else
 		{
-			log("Not enough available resources\n");
+			log("\tNot enough available resources\n");
 
 			//Display information
 			if (verbose)
