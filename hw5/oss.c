@@ -41,8 +41,6 @@ static int activeCount = 0;
 static int spawnCount = 0;
 static int exitCount = 0;
 
-static pid_t pid = -1;
-
 static Queue *queue;
 static Time forkclock;
 static Data data;
@@ -80,30 +78,33 @@ int findAvailablePID();
 bool verbose = false;
 pid_t pids[PROCESSES_MAX];
 
+void spawnProcess(int spid) {
+	pid_t pid = fork();
+	pids[spid] = pid;
+
+	if (pid == -1) crash("fork");
+	else if (pid == 0) {
+		char arg[BUFFER_LENGTH];
+		snprintf(arg, BUFFER_LENGTH, "%d", spid);
+		execl("./user", "user", arg, (char*) NULL);
+		crash("execl");
+	}
+
+	activeCount++;
+	spawnCount++;
+	initPCB(pid, spid);
+	queue_push(queue, spid);
+	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
+}
+
 void trySpawnProcess() {
+	//int spawn_nano = rand() % 500000000 + 1000000;
 	int spawn_nano = 100;
 	if (forkclock.ns >= spawn_nano) {
 		forkclock.ns = 0;
 
 		int spid = findAvailablePID();
-		if (spid >= 0) {
-			pid = fork();
-			pids[spid] = pid;
-
-			if (pid == -1) crash("fork");
-			else if (pid == 0) {
-				char arg[BUFFER_LENGTH];
-				snprintf(arg, BUFFER_LENGTH, "%d", spid);
-				execl("./user", "user", arg, (char*) NULL);
-				crash("execl");
-			}
-
-			activeCount++;
-			spawnCount++;
-			initPCB(pid, spid);
-			queue_push(queue, spid);
-			log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
-		}
+		if (spid >= 0) spawnProcess(spid);
 	}
 }
 
@@ -229,7 +230,6 @@ int main(int argc, char **argv) {
 	registerSignalHandlers();
 
 	while (true) {
-		//int spawn_nano = rand() % 500000000 + 1000000;
 		trySpawnProcess();
 
 		incShmclock();
