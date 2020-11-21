@@ -130,28 +130,22 @@ int main(int argc, char **argv) {
 	forkclock.s = 0;
 	forkclock.ns = 0;
 
-	//Init process control block table variable
+	FILE *fp;
+	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
+	if (fclose(fp) == EOF) crash("fclose");
+
 	initPCBT(pcbt_shmptr);
 
-	//--------------------------------------------------
-	/* ===== Queue/Resource ===== */
-	//Set up queue
 	queue = queue_create();
 	initResource(&data);
 	displayResource(data);
 
-	//--------------------------------------------------
-	/* =====Signal Handling===== */
 	registerSignalHandlers();
 
-	//--------------------------------------------------
-	/* =====Multi Processes===== */
-	while (true)
-	{
+	while (true) {
 		//int spawn_nano = rand() % 500000000 + 1000000;
 		int spawn_nano = 100;
-		if (forkclock.ns >= spawn_nano)
-		{
+		if (forkclock.ns >= spawn_nano) {
 			//Reset forkclock
 			forkclock.ns = 0;
 
@@ -160,19 +154,10 @@ int main(int argc, char **argv) {
 				pid = fork();
 				pids[spid] = pid;
 
-				if (pid == -1)
-				{
-					fprintf(stderr, "%s (Master) ERROR: %s\n", programName, strerror(errno));
-					finalize();
-					cleanUp();
-					exit(0);
-				}
-
-				if (pid == 0) {
-					//Simple signal handler: this is for mis-synchronization when timer fire off
+				if (pid == -1) crash("fork");
+				else if (pid == 0) {
 					signal(SIGUSR1, exitHandler);
 
-					//Replaces the current running process with a new process (user)
 					char exec_index[BUFFER_LENGTH];
 					sprintf(exec_index, "%d", spid);
 					int exect_status = execl("./user", "./user", exec_index, NULL);
@@ -184,57 +169,42 @@ int main(int argc, char **argv) {
 					finalize();
 					cleanUp();
 					exit(EXIT_FAILURE);
-				} else {
-					//Increment the total number of fork in execution
-					fork_number++;
-
-					//Initialize user process information to the process control block table
-					initPCB(&pcbt_shmptr[spid], spid, pid, data);
-
-					//Add the process to highest queue
-					queue_push(queue, spid);
-
-					//Display creation time
-					log("%s: [%d.%d] p%d created\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, spid);
 				}
+
+				fork_number++;
+
+				initPCB(&pcbt_shmptr[spid], spid, pid, data);
+
+				queue_push(queue, spid);
+
+				log("%s: [%d.%d] p%d created\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, spid);
 			}
 		}
 
-		//- CRITICAL SECTION -//
 		incShmclock();
 
-		//--------------------------------------------------
-		/* =====Main Driver Procedure===== */
-		//Application procedure queues
 		QueueNode next;
 		Queue *trackingQueue = queue_create();
 
 		int current_iteration = 0;
 		next.next = queue->front;
-		while (next.next != NULL)
-		{
-			//- CRITICAL SECTION -//
+		while (next.next != NULL) {
 			incShmclock();
 
-			//Sending a message to a specific child to tell him it is his turn
 			int c_index = next.next->index;
 			master_message.mtype = pcbt_shmptr[c_index].pid;
 			master_message.index = c_index;
 			master_message.childPid = pcbt_shmptr[c_index].pid;
 			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
 
-			//Waiting for the specific child to respond back
 			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
 
-			//- CRITICAL SECTION -//
 			incShmclock();
 
-			//If child want to terminate, skips the current iteration of the loop and continues with the next iteration
 			if (master_message.flag == 0)
 			{
 				log("%s: [%d.%d] p%d terminating\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 
-				//Remove the process out of the queue
 				QueueNode current;
 				current.next = queue->front;
 				while (current.next != NULL)
@@ -244,11 +214,9 @@ int main(int argc, char **argv) {
 						queue_push(trackingQueue, current.next->index);
 					}
 
-					//Point the pointer to the next queue element
 					current.next = (current.next->next != NULL) ? current.next->next : NULL;
 				}
 
-				//Reassigned the current queue
 				while (!queue_empty(queue))
 				{
 					queue_pop(queue);
@@ -260,7 +228,6 @@ int main(int argc, char **argv) {
 					queue_pop(trackingQueue);
 				}
 
-				//Point the pointer to the next queue element
 				next.next = queue->front;
 				int i;
 				for (i = 0; i < current_iteration; i++)
@@ -270,61 +237,46 @@ int main(int argc, char **argv) {
 				continue;
 			}
 
-			//If process is requesting resources, execute the Banker Algorithm
-			//If not, simply add the current process to the tracking queue and point the pointer to the next queue element
 			if (master_message.isRequest == true)
 			{
 				log("%s: [%d.%d] p%d requesting\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 
-				//Execute the Banker Algorithm
 				bool isSafe = bankerAlgorithm(&data, pcbt_shmptr, queue, c_index);
 
-				//Send a message to child process whether if it safe to proceed the request OR not
 				master_message.mtype = pcbt_shmptr[c_index].pid;
 				master_message.isSafe = (isSafe) ? true : false;
 				msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
 			}
 
-			//- CRITICAL SECTION -//
 			incShmclock();
 
-			//Is the process releasing resources?
 			if (master_message.isRelease)
 			{
 				log("%s: [%d.%d] p%d releasing\n", programName, shmclock_shmptr->s, shmclock_shmptr->ns, master_message.index);
 			}
 
-			//Increase iterration
 			current_iteration++;
 
-			//Point the pointer to the next queue element
 			next.next = (next.next->next != NULL) ? next.next->next : NULL;
-		} //END OF: next.next
+		}
+
 		free(trackingQueue);
 
-		//- CRITICAL SECTION -//
 		incShmclock();
 
-		//--------------------------------------------------
-		//Check to see if a child exit, wait no bound (return immediately if no child has exit)
 		int child_status = 0;
 		pid_t child_pid = waitpid(-1, &child_status, WNOHANG);
 
-		//Set the return index bit back to zero (which mean there is a spot open for this specific index in the bitmap)
-		if (child_pid > 0)
-		{
+		if (child_pid > 0) {
 			int return_index = WEXITSTATUS(child_status);
 			pids[return_index] = 0;
 		}
 
-		//--------------------------------------------------
-		//End the infinite loop when reached X forking times. Turn off timer to avoid collision.
-		if (fork_number >= PROCESSES_TOTAL)
-		{
+		if (fork_number >= PROCESSES_TOTAL) {
 			timer(0);
 			masterHandler(0);
 		}
-	} //END OF: infinite while loop #1
+	}
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -353,6 +305,7 @@ void registerSignalHandlers() {
 	//Signal Handling for: SIGUSR1
 	signal(SIGUSR1, SIG_IGN);
 }
+
 void masterHandler(int signum)
 {
 	finalize();
@@ -366,18 +319,13 @@ void masterHandler(int signum)
 
 	exit(EXIT_SUCCESS);
 }
+
 void exitHandler(int signum)
 {
 	printf("%d: Terminated!\n", getpid());
 	exit(EXIT_SUCCESS);
 }
 
-/* ====================================================================================================
-* Function    :  finalize()
-* Definition  :  Send a SIGUSR1 signal to all the child process and "user" process.
-* Parameter   :  None.
-* Return      :  None.
-==================================================================================================== */
 void finalize()
 {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
@@ -389,16 +337,8 @@ void finalize()
 	}
 }
 
-/* ====================================================================================================
-* Function    :  discardShm()
-* Definition  :  Detach and remove any shared memory.
-* Parameter   :  Shared memory ID, shared memory address, shared memory name, current executable name,
-                  and current process type.
-* Return      :  None.
-==================================================================================================== */
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type)
 {
-	//Detaching...
 	if (shmaddr != NULL)
 	{
 		if ((shmdt(shmaddr)) << 0)
@@ -407,7 +347,6 @@ void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *
 		}
 	}
 
-	//Deleting...
 	if (shmid > 0)
 	{
 		if ((shmctl(shmid, IPC_RMID, NULL)) < 0)
@@ -417,12 +356,6 @@ void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *
 	}
 }
 
-/* ====================================================================================================
-* Function    :  cleanUp()
-* Definition  :  Release all shared memory and delete all message queue, shared memory, and semaphore.
-* Parameter   :  None.
-* Return      :  None.
-==================================================================================================== */
 void cleanUp()
 {
 	//Delete [message queue] shared memory
@@ -444,12 +377,6 @@ void cleanUp()
 	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", programName, "Master");
 }
 
-/* ====================================================================================================
-* Function    :  semaLock()
-* Definition  :  Invoke semaphore lock of the given semaphore and index.
-* Parameter   :  Semaphore Index.
-* Return      :  None.
-==================================================================================================== */
 void semaLock(int sem_index)
 {
 	sema_operation.sem_num = sem_index;
@@ -458,12 +385,6 @@ void semaLock(int sem_index)
 	semop(semid, &sema_operation, 1);
 }
 
-/* ====================================================================================================
-* Function    :  semaRelease()
-* Definition  :  Release semaphore lock of the given semaphore and index.
-* Parameter   :  Semaphore Index.
-* Return      :  None.
-==================================================================================================== */
 void semaRelease(int sem_index)
 {
 	sema_operation.sem_num = sem_index;
@@ -828,12 +749,7 @@ void initIPC() {
 	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
 	key = ftok("./oss.c", 1);
 	mqueueid = msgget(key, IPC_CREAT | 0600);
-	if(mqueueid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
+	if(mqueueid < 0) crash("msgget");
 
 
 	//--------------------------------------------------
@@ -841,21 +757,11 @@ void initIPC() {
 	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [shmclock] shared memory
 	key = ftok("./oss.c", 2);
 	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
-	if(shmclock_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
+	if(shmclock_shmid < 0) crash("shmget");
 
 	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
 	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if(shmclock_shmptr == (void *)( -1 ))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);	
-	}
+	if(shmclock_shmptr == (void *)( -1 )) crash("shmat");
 
 	//Initialize shared memory attribute of [shmclock] and forkclock
 	shmclock_shmptr->s = 0;
@@ -869,12 +775,7 @@ void initIPC() {
 	//Create semaphore if doesn't exist with 666 bits permission. Return error if semaphore already exists
 	key = ftok("./oss.c", 3);
 	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
-	if(semid == -1)
-	{
-		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
+	if(semid == -1) crash("semget");
 	
 	//Initialize the semaphore(s) in our set to 1
 	semctl(semid, 0, SETVAL, 1);	//Semaphore #0: for [shmclock] shared memory
@@ -886,21 +787,11 @@ void initIPC() {
 	key = ftok("./oss.c", 4);
 	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
 	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
-	if(pcbt_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
+	if(pcbt_shmid < 0) crash("shmget");
 
 	//Attaching shared memory and check if can attach it. If not, delete the [pcbt] shared memory
 	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if(pcbt_shmptr == (void *)( -1 ))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);	
-	}
+	if(pcbt_shmptr == (void *)( -1 )) crash("shmat");
 }
 
 void freeIPC() {
