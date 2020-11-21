@@ -25,6 +25,8 @@
 #include "shared.h"
 #include "queue.h"
 
+#define log _log
+
 /* Static GLOBAL variable (misc) */
 static FILE *fpw = NULL;
 static char *programName;
@@ -85,6 +87,7 @@ void timer(int);
 void initIPC();
 void freeIPC();
 void cleanup();
+void log(char*, ...);
 
 bool verbose = false;
 
@@ -237,11 +240,7 @@ int main(int argc, char **argv) {
 					queue_push(queue, last_index);
 
 					//Display creation time
-					fprintf(stderr, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-							pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
-					fprintf(fpw, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-							pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
-					fflush(fpw);
+					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n");
 				}
 			} //END OF: is_bitmap_open if check
 		}	  //END OF: forkclock.nanosecond if check
@@ -268,7 +267,6 @@ int main(int argc, char **argv) {
 			master_message.index = c_index;
 			master_message.childPid = pcbt_shmptr[c_index].pid;
 			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
-			//DEBUG fprintf(fpw, "%s: process with PID (%d) [%d], c:%d\n", exe_name, master_message.index, master_message.childPid, c_index);
 
 			//Waiting for the specific child to respond back
 			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
@@ -279,11 +277,7 @@ int main(int argc, char **argv) {
 			//If child want to terminate, skips the current iteration of the loop and continues with the next iteration
 			if (master_message.flag == 0)
 			{
-				fprintf(stderr, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						programName, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
-				fprintf(fpw, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						programName, master_message.index, master_message.childPid, shmclock_shmptr->s, shmclock_shmptr->ns);
-				fflush(fpw);
+				log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n");
 
 				//Remove the process out of the queue
 				QueueNode current;
@@ -327,11 +321,7 @@ int main(int argc, char **argv) {
 			//If not, simply add the current process to the tracking queue and point the pointer to the next queue element
 			if (master_message.isRequest == true)
 			{
-				fprintf(stderr, "%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n",
-						programName, master_message.index, master_message.childPid);
-				fprintf(fpw, "%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n",
-						programName, master_message.index, master_message.childPid);
-				fflush(fpw);
+				log("%s: process with PID (%d) [%d] is REQUESTING resources. Invoking banker's algorithm...\n");
 
 				//Execute the Banker Algorithm
 				bool isSafe = bankerAlgorithm(fpw, 0, verbose, &data, pcbt_shmptr, queue, c_index);
@@ -348,11 +338,7 @@ int main(int argc, char **argv) {
 			//Is the process releasing resources?
 			if (master_message.isRelease)
 			{
-				fprintf(stderr, "%s: process with PID (%d) [%d] is RELEASING allocated resources.\n",
-						programName, master_message.index, master_message.childPid);
-				fprintf(fpw, "%s: process with PID (%d) [%d] is RELEASING allocated resources.\n",
-						programName, master_message.index, master_message.childPid);
-				fflush(fpw);
+				log("%s: process with PID (%d) [%d] is RELEASING allocated resources.\n");
 			}
 
 			//Increase iterration
@@ -610,7 +596,7 @@ void displayResource(FILE *fpw, Data data)
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++)
 	{
-		fprintf(stderr, "%2d", data.resource[i]);
+		log("%2d", data.resource[i]);
 		fprintf(fpw, "%2d", data.resource[i]);
 
 		if (i < RESOURCES_MAX - 1)
@@ -619,8 +605,7 @@ void displayResource(FILE *fpw, Data data)
 			fprintf(fpw, " | ");
 		}
 	}
-	fprintf(stderr, ">\n\n");
-	fprintf(fpw, ">\n");
+	log(">\n\n");
 
 	fprintf(stderr, "Sharable Resources: %d\n\n", data.shared);
 	fprintf(fpw, "Sharable Resources: %d\n", data.shared);
@@ -1079,4 +1064,15 @@ void init(int argc, char **argv) {
 }
 
 void cleanup() {
+}
+
+void log(char *fmt, ...) {
+	char buf[BUFFER_LENGTH];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
+	va_end(args);
+
+	fprintf(stderr, buf);
+	fprintf(fpw, buf);
 }
