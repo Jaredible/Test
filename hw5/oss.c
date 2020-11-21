@@ -77,11 +77,10 @@ bool verbose = false;
 pid_t pids[PROCESSES_MAX];
 
 void test() {
-	QueueNode *next;
+	int i, j = 0;
+	QueueNode *next = queue->front;
 	Queue *temp = queue_create();
-
-	int current_iteration = 0;
-	next = queue->front;
+	
 	while (next != NULL) {
 		incShmclock();
 
@@ -97,14 +96,13 @@ void test() {
 		if (message.terminate == TERMINATE) {
 			log("%s: [%d.%d] p%d terminating\n", programName, system->clock.s, system->clock.ns, message.spid);
 
-			QueueNode current;
-			current.next = queue->front;
-			while (current.next != NULL) {
-				if (current.next->index != c_index) {
-					queue_push(temp, current.next->index);
+			QueueNode *current = queue->front;
+			while (current != NULL) {
+				if (current->index != c_index) {
+					queue_push(temp, current->index);
 				}
 
-				current.next = (current.next->next != NULL) ? current.next->next : NULL;
+				current = (current->next != NULL) ? current->next : NULL;
 			}
 
 			while (!queue_empty(queue)) {
@@ -117,10 +115,9 @@ void test() {
 			}
 
 			next = queue->front;
-			int i;
-			for (i = 0; i < current_iteration; i++) {
+			for (i = 0; i < j; i++)
 				next = (next->next != NULL) ? next->next : NULL;
-			}
+
 			continue;
 		}
 
@@ -140,7 +137,7 @@ void test() {
 			log("%s: [%d.%d] p%d releasing\n", programName, system->clock.s, system->clock.ns, message.spid);
 		}
 
-		current_iteration++;
+		j++;
 
 		next = (next->next != NULL) ? next->next : NULL;
 	}
