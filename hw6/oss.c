@@ -294,12 +294,6 @@ int main(int argc, char *argv[])
 	masterInterrupt(TERMINATION_TIME);
 
 
-	//--------------------------------------------------
-	/* =====Multi Processes===== */
-	if(!isDisplayTerminal)
-	{
-		fprintf(stderr, "Simulating...\n");
-	}
 	if(isDebugMode)
 	{
 		fprintf(stderr, "DEBUG mode is ON\n");
@@ -555,88 +549,43 @@ int main(int argc, char *argv[])
 							exe_name, address, request_page);
 
 						//- Memory Management -//
-						switch(algorithm_choice)
+						if(isDebugMode)
 						{
-							case 0://FIFO Algorithm
-								if(isDebugMode)
-								{
-									printWrite(fpw, getList(reference_string));
-								}
+							printWrite(fpw, getList(reference_string));
+							printWrite(fpw, getList(lru_stack));
+						}
 
-								unsigned int fifo_index = reference_string->front->index;
-								unsigned int fifo_page = reference_string->front->page;
-								unsigned int fifo_address = fifo_page << 10;
-								unsigned int fifo_frame = reference_string->front->frame;
+						unsigned int lru_index = lru_stack->front->index;
+						unsigned int lru_page = lru_stack->front->page;
+						unsigned int lru_address = lru_page << 10;
+						unsigned int lru_frame = lru_stack->front->frame;
+					
+						if(pcbt_shmptr[lru_index].page_table[lru_page].dirty == 1)
+						{
+							printWrite(fpw, "%s: address (%d) [%d] was modified. Modified information is written back to the disk\n", 
+								exe_name, lru_address, lru_page);
+						}
 
-								if(pcbt_shmptr[fifo_index].page_table[fifo_page].dirty == 1)
-								{
-									printWrite(fpw, "%s: address (%d) [%d] was modified. Modified information is written back to the disk\n", 
-										exe_name, fifo_address, fifo_page);
-								}
+						//Replacing procedure
+						pcbt_shmptr[lru_index].page_table[lru_page].frameNo = -1;
+						pcbt_shmptr[lru_index].page_table[lru_page].dirty = 0;
+						pcbt_shmptr[lru_index].page_table[lru_page].valid = 0;
 
-								//Replacing procedure
-								pcbt_shmptr[fifo_index].page_table[fifo_page].frameNo = -1;
-								pcbt_shmptr[fifo_index].page_table[fifo_page].dirty = 0;
-								pcbt_shmptr[fifo_index].page_table[fifo_page].valid = 0;
+						pcbt_shmptr[c_index].page_table[request_page].frameNo = lru_frame;
+						pcbt_shmptr[c_index].page_table[request_page].dirty = 0;
+						pcbt_shmptr[c_index].page_table[request_page].valid = 1;
 
-								pcbt_shmptr[c_index].page_table[request_page].frameNo = fifo_frame;
-								pcbt_shmptr[c_index].page_table[request_page].dirty = 0;
-								pcbt_shmptr[c_index].page_table[request_page].valid = 1;
+						//Update LRU stack and reference string
+						deleteListElement(lru_stack, lru_index, lru_page, lru_frame);
+						deleteListElement(reference_string, lru_index, lru_page, lru_frame);
+						addListElement(lru_stack, c_index, request_page, lru_frame);
+						addListElement(reference_string, c_index, request_page, lru_frame);
 
-								//Update reference string
-								deleteListFirst(reference_string);
-								addListElement(reference_string, c_index, request_page, fifo_frame);
-
-								if(isDebugMode)
-								{
-									printWrite(fpw, "After invoking FIFO algorithm...\n");
-									printWrite(fpw, getList(reference_string));
-								}
-								break;
-
-							case 1://LRU Algorithm
-								if(isDebugMode)
-								{
-									printWrite(fpw, getList(reference_string));
-									printWrite(fpw, getList(lru_stack));
-								}
-
-								unsigned int lru_index = lru_stack->front->index;
-								unsigned int lru_page = lru_stack->front->page;
-								unsigned int lru_address = lru_page << 10;
-								unsigned int lru_frame = lru_stack->front->frame;
-							
-								if(pcbt_shmptr[lru_index].page_table[lru_page].dirty == 1)
-								{
-									printWrite(fpw, "%s: address (%d) [%d] was modified. Modified information is written back to the disk\n", 
-										exe_name, lru_address, lru_page);
-								}
-
-								//Replacing procedure
-								pcbt_shmptr[lru_index].page_table[lru_page].frameNo = -1;
-								pcbt_shmptr[lru_index].page_table[lru_page].dirty = 0;
-								pcbt_shmptr[lru_index].page_table[lru_page].valid = 0;
-
-								pcbt_shmptr[c_index].page_table[request_page].frameNo = lru_frame;
-								pcbt_shmptr[c_index].page_table[request_page].dirty = 0;
-								pcbt_shmptr[c_index].page_table[request_page].valid = 1;
-
-								//Update LRU stack and reference string
-								deleteListElement(lru_stack, lru_index, lru_page, lru_frame);
-								deleteListElement(reference_string, lru_index, lru_page, lru_frame);
-								addListElement(lru_stack, c_index, request_page, lru_frame);
-								addListElement(reference_string, c_index, request_page, lru_frame);
-
-								if(isDebugMode)
-								{
-									printWrite(fpw, "After invoking LRU algorithm...\n");
-									printWrite(fpw, getList(reference_string));
-									printWrite(fpw, getList(lru_stack));
-								}
-								break;
-
-							default:
-								break;
+						if(isDebugMode)
+						{
+							printWrite(fpw, "After invoking LRU algorithm...\n");
+							printWrite(fpw, getList(reference_string));
+							printWrite(fpw, getList(lru_stack));
 						}
 
 						//Modify dirty bit when requesting write of address
