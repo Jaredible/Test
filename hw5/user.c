@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
 	bool is_ran_duration = false;
 
 	while (true) {
-		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
+		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 		if (!is_ran_duration)
 		{
@@ -111,12 +111,12 @@ int main(int argc, char **argv) {
 		message.terminate = is_terminate ? 0 : 1;
 		message.request = is_requesting ? true : false;
 		message.release = is_releasing ? true : false;
-		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+		msgsnd(msqid, &message, sizeof(Message), 0);
 
 		if (is_terminate) break;
 		else {
 			if (is_requesting) {
-				msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
+				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 				if (message.safe == true) {
 					for (i = 0; i < RESOURCES_MAX; i++)

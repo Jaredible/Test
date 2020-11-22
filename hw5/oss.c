@@ -115,9 +115,9 @@ void handleProcesses() {
 		message.type = system->ptable[index].pid;
 		message.spid = index;
 		message.pid = system->ptable[index].pid;
-		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+		msgsnd(msqid, &message, sizeof(Message), 0);
 
-		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
+		msgrcv(msqid, &message, sizeof(Message), 1, 0);
 
 		advanceClock();
 
@@ -138,7 +138,7 @@ void handleProcesses() {
 
 			message.type = system->ptable[index].pid;
 			message.safe = safe(system->ptable, queue, index);
-			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+			msgsnd(msqid, &message, sizeof(Message), 0);
 		}
 
 		advanceClock();
