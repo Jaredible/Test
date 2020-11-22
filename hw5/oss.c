@@ -39,6 +39,7 @@ void initPCB(pid_t, int);
 int findAvailablePID();
 void advanceClock();
 
+
 void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void printVector(char*, char*, int vector[RESOURCES_MAX]);
@@ -56,7 +57,6 @@ void finalize();
 void error(char*, ...);
 void crash(char*);
 void log(char*, ...);
-
 void semLock(int);
 void semUnlock(int);
 
@@ -192,19 +192,13 @@ void handleProcesses() {
 				next = (next->next != NULL) ? next->next : NULL;
 
 			continue;
-		}
-		
-		if (message.request) {
+		} else if (message.request) {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			message.type = system->ptable[index].pid;
 			message.safe = safe(system->ptable, queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
-		}
-		
-		advanceClock();
-
-		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		} else if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		
 		count++;
 
@@ -213,7 +207,7 @@ void handleProcesses() {
 }
 
 void trySpawnProcess() {
-	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= 100) {
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
 		nextSpawn.ns = 0;
 		int spid = findAvailablePID();
 		if (spid >= 0) spawnProcess(spid);
@@ -410,10 +404,16 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
-	QueueNode *next;
-	next = queue->front;
-	if (next == NULL) return true;
+	//=====Check for null queue=====
+	//Return true (safe) when working queue is null
+	QueueNode next;
+	next.next = queue->front;
+	if (next.next == NULL)
+	{
+		return true;
+	}
 
+	//=====Initialization/Get information=====
 	int count = queue_size(queue);
 	int maxm[count][RESOURCES_MAX];
 	int allot[count][RESOURCES_MAX];
@@ -421,27 +421,46 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
+	//Setting up matrix base on given queue and process control block table
 	setMatrix(pcbt, queue, maxm, allot, count);
+
+	//Calculate need matrix
 	calculateNeedMatrix(need, maxm, allot, count);
 
-	for (i = 0; i < RESOURCES_MAX; i++) {
+	//Setting up available vector and request vector
+	for (i = 0; i < RESOURCES_MAX; i++)
+	{
 		avail[i] = descriptor.resource[i];
 		req[i] = pcbt[c_index].request[i];
 	}
 
+	//Update available vector
 	for (i = 0; i < count; i++)
+	{
 		for (j = 0; j < RESOURCES_MAX; j++)
+		{
 			avail[j] = avail[j] - allot[i][j];
-
-	int idx = 0;
-	next = queue->front;
-	while (next != NULL) {
-		if (next->index == c_index) break;
-		idx++;
-		next = (next->next != NULL) ? next->next : NULL;
+		}
 	}
 
-	if (verbose) {
+	//Map the PID Index to NEED vector index
+	int idx = 0;
+	next.next = queue->front;
+	while (next.next != NULL)
+	{
+		if (next.next->index == c_index)
+		{
+			break;
+		}
+		idx++;
+
+		//Point the pointer to the next queue element
+		next.next = (next.next->next != NULL) ? next.next->next : NULL;
+	}
+
+	//Display information
+	if (verbose)
+	{
 		printMatrix("Maximum", queue, maxm, count);
 		printMatrix("Allocation", queue, allot, count);
 		char str[BUFFER_LENGTH];
@@ -449,84 +468,128 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 		printVector("Request", str, req);
 	}
 
-	bool finish[count];
-	int safeSeq[count];
-	memset(finish, 0, count * sizeof(finish[0]));
+	//=====Finding SAFE Sequence=====
+	bool finish[count];							  //To store finish
+	int safeSeq[count];							  //To store safe sequence
+	memset(finish, 0, count * sizeof(finish[0])); //Mark all processes as not finish
 
+	//Make a copy of available resources (working vector)
 	int work[RESOURCES_MAX];
 	for (i = 0; i < RESOURCES_MAX; i++)
+	{
 		work[i] = avail[i];
+	}
 
-	for (j = 0; j < RESOURCES_MAX; j++) {
-		if (need[idx][j] < req[j] && j < descriptor.shared) {
+	/* =====Resource Request Algorithm===== */
+	for (j = 0; j < RESOURCES_MAX; j++)
+	{
+		//Check to see if the process is not asking for more than it will ever need
+		if (need[idx][j] < req[j] && j < descriptor.shared)
+		{
 			log("\tAsked for more than initial max request\n");
 
-			if (verbose) {
+			//Display information
+			if (verbose)
+			{
 				printVector("Available", "A  ", avail);
 				printMatrix("Need", queue, need, count);
 			}
-
 			return false;
 		}
 
-		if (req[j] <= avail[j] && j < descriptor.shared) {
+		if (req[j] <= avail[j] && j < descriptor.shared)
+		{
 			avail[j] -= req[j];
 			allot[idx][j] += req[j];
 			need[idx][j] -= req[j];
-		} else {
+		}
+		else
+		{
 			log("\tNot enough available resources\n");
 
-			if (verbose) {
+			//Display information
+			if (verbose)
+			{
 				printVector("Available", "A  ", avail);
 				printMatrix("Need", queue, need, count);
 			}
-
 			return false;
 		}
 	}
 
+	/* =====Safety Algorithm===== */
+	//While all processes are not finished or system is not in safe state.
 	int index = 0;
-	while (index < count) {
+	while (index < count)
+	{
+		//Find a process which is not finish and whose needs can be satisfied with current work[] resources.
 		bool found = false;
-		for (p = 0; p < count; p++) {
-			if (finish[p] == 0) {
+		for (p = 0; p < count; p++)
+		{
+			//First check if a process is finished, if no, go for next condition
+			if (finish[p] == 0)
+			{
+				//Check if for all resources of current process need is less than work
 				for (j = 0; j < RESOURCES_MAX; j++)
-					if (need[p][j] > work[j] && descriptor.shared) break;
+				{
+					if (need[p][j] > work[j] && descriptor.shared)
+					{
+						break;
+					}
+				}
 
-				if (j == RESOURCES_MAX) {
+				//If all needs of p were satisfied.
+				if (j == RESOURCES_MAX)
+				{
+					//Add the allocated resources of current process to the available/work resources i.e. free the resources
 					for (k = 0; k < RESOURCES_MAX; k++)
+					{
 						work[k] += allot[p][k];
+					}
 
+					//Add this process to safe sequence.
 					safeSeq[index++] = p;
 
+					//Mark this p as finished and found is true
 					finish[p] = 1;
 					found = true;
 				}
 			}
 		}
 
-		if (found == false) {
+		//If we could not find a next process in safe sequence.
+		if (found == false)
+		{
 			log("System is in UNSAFE (not safe) state\n");
 			return false;
 		}
-	}
+	} //END OF: index < count
 
-	if (verbose) {
+	//Display information
+	if (verbose)
+	{
 		printVector("Available", "A  ", avail);
 		printMatrix("Need", queue, need, count);
 	}
 
+	//Map the safe sequence with the queue sequence
 	int sequence[count];
 	int seq_index = 0;
-	next = queue->front;
-	while (next != NULL) {
-		sequence[seq_index++] = next->index;
-		next = (next->next != NULL) ? next->next : NULL;
+	next.next = queue->front;
+	while (next.next != NULL)
+	{
+		sequence[seq_index++] = next.next->index;
+
+		//Point the pointer to the next queue element
+		next.next = (next.next->next != NULL) ? next.next->next : NULL;
 	}
 
+	//If system is in safe state then safe sequence will be as below
 	log("System is in SAFE state. Safe sequence is: ");
 	for (i = 0; i < count; i++)
+	{
 		log("%2d ", sequence[safeSeq[i]]);
+	}
 	log("\n\n");
 
 	return true;
