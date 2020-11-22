@@ -506,7 +506,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 		bool found = false;
 		for (p = 0; p < count; p++) {
 			if (finish[p] == 0) {
-				for (j = 0; j < RESOURCES_MAX; j++) {
+				for (j = 0; j < RESOURCES_MAX; j++)
 					if (need[p][j] > work[j] && descriptor.shared) break;
 
 				if (j == RESOURCES_MAX) {
