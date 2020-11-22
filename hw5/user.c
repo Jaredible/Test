@@ -1,385 +1,187 @@
 /*
- * oss.c November 21, 2020
+ * user.c November 21, 2020
  * Jared Diehl (jmddnb@umsystem.edu)
  */
 
-#include <stdlib.h>     //exit()
-#include <stdio.h>      //printf()
-#include <stdbool.h>    //bool variable
-#include <stdint.h>     //for uint32_t
-#include <string.h>     //str function
-#include <unistd.h>     //standard symbolic constants and types
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
 
-#include <stdarg.h>     //va macro
-#include <errno.h>      //errno variable
-#include <signal.h>     //signal handling
-#include <sys/ipc.h>    //IPC flags
-#include <sys/msg.h>    //message queue stuff
-#include <sys/shm.h>    //shared memory stuff
-#include <sys/sem.h>    //semaphore stuff, semget()
-#include <sys/time.h>   //setitimer()
-#include <sys/types.h>  //contains a number of basic derived types
-#include <sys/wait.h>   //waitpid()
-#include <time.h>       //time()
+#include <stdarg.h>
+#include <errno.h>
+#include <signal.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
 
 #include "shared.h"
 
-/* Static GLOBAL variable (misc) */
-static char *exe_name;
-static int exe_index;
-static key_t key;
+static char *programName;
 
+static int spid;
 
-/* Static GLOBAL variable (shared memory) */
-static int mqueueid = -1;
-static Message user_message;
-static int shmclock_shmid = -1;
-static Time *shmclock_shmptr = NULL;
-static int semid = -1;
-static struct sembuf sema_operation;
-static int pcbt_shmid = -1;
-static PCB *pcbt_shmptr = NULL;
+static int shmid = -1;
+static int msqid = -1;
 
+static System *system = NULL;
+static Message message;
 
-/* Prototype Function */
-void processInterrupt();
-void processHandler(int signum);
-void resumeHandler(int signum);
-void discardShm(void *shmaddr, char *shm_name , char *exe_name, char *process_type);
-void cleanUp();
-void semaLock(int sem_index);
-void semaRelease(int sem_index);
-void getSharedMemory();
+void registerSignalHandlers();
+void signalHandler(int);
 
+void initIPC();
+void crash(char*);
+void init(int, char**);
 
-/* ====================================================================================================
-MAIN
-==================================================================================================== */
-int main(int argc, char *argv[]) 
-{
-	/* =====Signal Handling====== */
-	processInterrupt();
+int main(int argc, char **argv) {
+	init(argc, argv);
 
+	registerSignalHandlers();
 
-	//--------------------------------------------------
-	/* =====Initialize resources===== */
 	int i;
-	exe_name = argv[0];
-	exe_index = atoi(argv[1]);
-	srand(getpid());
+	spid = atoi(argv[1]);
 
+	srand(time(NULL) ^ getpid());
 
-	//--------------------------------------------------
-	/* =====Getting shared memory===== */
-	getSharedMemory();
-	
-	//--------------------------------------------------
+	initIPC();
+
 	bool is_resource_once = false;
 	bool is_requesting = false;
 	bool is_acquire = false;
 	Time userStartClock;
 	Time userEndClock;
-	userStartClock.s = shmclock_shmptr->s;
-	userStartClock.ns = shmclock_shmptr->ns;
+	userStartClock.s = system->clock.s;
+	userStartClock.ns = system->clock.ns;
 	bool is_ran_duration = false;
-	while(1)
-	{
-		//Waiting for master signal to get resources
-		msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
-		//DEBUG fprintf(stderr, "%s (%d): my index [%d]\n", exe_name, getpid(), user_message.index);
 
-		//Did this child process ran for at least one second?
-		if(!is_ran_duration)
+	while (true) {
+		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
+
+		if (!is_ran_duration)
 		{
-			userEndClock.s = shmclock_shmptr->s;
-			userEndClock.ns = shmclock_shmptr->ns;
-			if(abs(userEndClock.ns - userStartClock.ns) >= 1000000000)
+			userEndClock.s = system->clock.s;
+			userEndClock.ns = system->clock.ns;
+			if (abs(userEndClock.ns - userStartClock.ns) >= 1000000000)
 			{
 				is_ran_duration = true;
 			}
-			else if(abs(userEndClock.s - userStartClock.s) >= 1)
+			else if (abs(userEndClock.s - userStartClock.s) >= 1)
 			{
 				is_ran_duration = true;
 			}
 		}
 
-		//Determine what to do base on whether this process have gotten resource once or not
-		/* CHOICE
-		- You should have a parameter giving a bound B for when a process should request (or let go of) a resource.
-		- Each process, when it starts, should generate a random number in the range [0 : B] and when it occurs, 
-			it should try and either claim a new resource or release an already acquired resource. 
-		[0] indicates that the process should request some resources (request should never exceed the maximum claims minus whatever the process already has).
-		[1] indicates that the process should release already acquired resources.
-		[2] indicates that the process terminates and release all resources. */
 		bool is_terminate = false;
 		bool is_releasing = false;
 		int choice;
-		if(!is_resource_once || !is_ran_duration)
-		{
-			choice = rand() % 2 + 0;
-		}
-		else
-		{
-			choice = rand() % 3 + 0;
-		}
+		if (!is_resource_once || !is_ran_duration) choice = rand() % 2 + 0;
+		else choice = rand() % 3 + 0;
 
-		if(choice == 0)
-		{
+		if (choice == 0) {
 			is_resource_once = true;
 
-			if(!is_requesting)
-			{
-				for(i = 0; i < RESOURCES_MAX; i++)
-				{
-					pcbt_shmptr[exe_index].request[i] = rand() % (pcbt_shmptr[exe_index].maximum[i] - pcbt_shmptr[exe_index].allocation[i] + 1);
+			if (!is_requesting) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
+					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
 				}
 				is_requesting = true;
 			}
 		}
-		else if(choice == 1)
-		{
-			if(is_acquire)
-			{
-				for(i = 0; i < RESOURCES_MAX; i++)
-				{
-					pcbt_shmptr[exe_index].release[i] = pcbt_shmptr[exe_index].allocation[i];
+		else if (choice == 1) {
+			if (is_acquire) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
+					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
 				}
 				is_releasing = true;
 			}
 		}
-		else if(choice == 2)
-		{
+		else if (choice == 2) {
 			is_terminate = true;
 		}
 
-		//Send a message to master that I got the signal and master should invoke an action base on my "choice"
-		user_message.type = 1;
-		user_message.terminate = (is_terminate) ? 0 : 1;
-		user_message.request = (is_requesting) ? true : false;
-		user_message.release = (is_releasing) ? true : false;
-		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
+		message.type = 1;
+		message.terminate = is_terminate ? 0 : 1;
+		message.request = is_requesting ? true : false;
+		message.release = is_releasing ? true : false;
+		msgsnd(msqid, &message, sizeof(Message), 0);
 
+		if (is_terminate) break;
+		else {
+			if (is_requesting) {
+				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
-		//--------------------------------------------------
-		//Determine sleep again or end the current process
-		//If sleep again, check if process can proceed the request OR release already allocated resources
-		if(is_terminate)
-		{
-			break;
-		}
-		else
-		{
-			/* Update resources by either: 
-			[1] If it requesting and it is SAFE, increment allocation vector. 
-			[2] If it requesting and it is UNSAFE, do nothing.
-			[3] If it releasing, decrement allocation vector base on current allocation vector */
-			if(is_requesting)
-			{
-				//Waiting for master signal to determine if it safe to proceed the request
-				msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
-
-				if(user_message.safe == true)
-				{
-					for(i = 0; i < RESOURCES_MAX; i++)
+				if (message.safe == true) {
+					for (i = 0; i < RESOURCES_MAX; i++)
 					{
-						pcbt_shmptr[exe_index].allocation[i] += pcbt_shmptr[exe_index].request[i];
-						pcbt_shmptr[exe_index].request[i] = 0;
+						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
+						system->ptable[spid].request[i] = 0;
 					}
 					is_requesting = false;
 					is_acquire = true;
 				}
 			}
 
-			if(is_releasing)
-			{
-				for(i = 0; i < RESOURCES_MAX; i++)
-				{
-					pcbt_shmptr[exe_index].allocation[i] -= pcbt_shmptr[exe_index].release[i];
-					pcbt_shmptr[exe_index].release[i] = 0;
+			if (is_releasing) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
+					system->ptable[spid].allocation[i] -= system->ptable[spid].release[i];
+					system->ptable[spid].release[i] = 0;
 				}
 				is_acquire = false;
 			}
 		}
-	}//END OF: Infinite while loop #1
-
-	cleanUp();
-	exit(exe_index);
-}
-
-
-/* ====================================================================================================
-* Function    :  processInterrupt() and processHandler()
-* Definition  :  Interrupt process when caught SIGTERM. Release all resources.
-                  Once that done, simply exit with status 2 code.
-* Parameter   :  Number of second.
-* Return      :  None.
-==================================================================================================== */
-void processInterrupt()
-{
-	struct sigaction sa1;
-	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &processHandler;
-	sa1.sa_flags = SA_RESTART;
-	if(sigaction(SIGUSR1, &sa1, NULL) == -1)
-	{
-		perror("ERROR");
 	}
 
-	struct sigaction sa2;
-	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &processHandler;
-	sa2.sa_flags = SA_RESTART;
-	if(sigaction(SIGINT, &sa2, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	return spid;
 }
-void processHandler(int signum)
-{
+
+void registerSignalHandlers() {
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGUSR1, &sa, NULL) == -1) crash("sigaction");
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
+}
+
+void signalHandler(int sig) {
 	printf("%d: Terminated!\n", getpid());
-	cleanUp();
 	exit(2);
 }
 
+void initIPC() {
+	key_t key;
 
+	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((shmid = shmget(key, sizeof(System), 0)) == -1) crash("shmget");
+	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
-/* ====================================================================================================
-* Function    :  discardShm()
-* Definition  :  Detach any shared memory.
-* Parameter   :  Shared memory address, shared memory name, current executable name, and current 
-                  process type.
-* Return      :  None.
-==================================================================================================== */
-void discardShm(void *shmaddr, char *shm_name , char *exe_name, char *process_type)
-{
-	//Detaching...
-	if(shmaddr != NULL)
-	{
-		if((shmdt(shmaddr)) << 0)
-		{
-			fprintf(stderr, "%s (%s) ERROR: could not detach [%s] shared memory!\n", exe_name, process_type, shm_name);
-		}
-	}
+	if ((key = ftok(".", 1)) == -1) crash("ftok");
+	if ((msqid = msgget(key, 0)) == -1) crash("msgget");
 }
 
-
-/* ====================================================================================================
-* Function    :  cleanUp()
-* Definition  :  Release all shared memory.
-* Parameter   :  None.
-* Return      :  None.
-==================================================================================================== */
-void cleanUp()
-{
-	//Release [shmclock] shared memory
-	discardShm(shmclock_shmptr, "shmclock", exe_name, "Child");
-
-	//Release [pcbt] shared memory
-	discardShm(pcbt_shmptr, "pcbt", exe_name, "Child");
+void crash(char *msg) {
+	char buf[BUFFER_LENGTH];
+	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
+	perror(buf);
+	
+	exit(EXIT_FAILURE);
 }
 
+void init(int argc, char **argv) {
+	programName = argv[0];
 
-/* ====================================================================================================
-* Function    :  semaLock()
-* Definition  :  Invoke semaphore lock of the given semaphore and index.
-* Parameter   :  Semaphore Index.
-* Return      :  None.
-==================================================================================================== */
-void semaLock(int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = -1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
-}
-
-
-/* ====================================================================================================
-* Function    :  semaRelease()
-* Definition  :  Release semaphore lock of the given semaphore and index.
-* Parameter   :  Semaphore Index.
-* Return      :  None.
-==================================================================================================== */
-void semaRelease(int sem_index)
-{	
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = 1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
-}
-
-
-
-/* ====================================================================================================
-* Function    :  getSharedMemory()
-* Definition  :  Get message queue, get shared clock, get semaphore, and get process control block
-                  table.
-* Parameter   :  None.
-* Return      :  None.
-==================================================================================================== */
-void getSharedMemory()
-{
-	/* =====Getting [message queue] shared memory===== */
-	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, 0600);
-	if(mqueueid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not get [message queue] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-
-	//--------------------------------------------------
-	/* =====Getting [shmclock] shared memory===== */
-	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(Time), 0600);
-	if(shmclock_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not get [shmclock] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//Attaching shared memory and check if can attach it. 
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if(shmclock_shmptr == (void *)( -1 ))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);	
-	}
-
-
-	//--------------------------------------------------
-	/* =====Getting semaphore===== */
-	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, 0600);
-	if(semid == -1)
-	{
-		fprintf(stderr, "%s ERROR: fail to attach a private semaphore! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//--------------------------------------------------
-	/* =====Getting process control block table===== */
-	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
-	pcbt_shmid = shmget(key, process_table_size, 0600);
-	if(pcbt_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not get [pcbt] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//Attaching shared memory and check if can attach it.
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if(pcbt_shmptr == (void *)( -1 ))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);	
-	}
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 }
