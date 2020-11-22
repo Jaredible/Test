@@ -231,6 +231,9 @@ int main(int argc, char **argv) {
 
 	simulate();
 
+	timer(0);
+	signalHandler(0);
+
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
