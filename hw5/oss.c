@@ -192,13 +192,19 @@ void handleProcesses() {
 				next = (next->next != NULL) ? next->next : NULL;
 
 			continue;
-		} else if (message.request) {
+		}
+		
+		if (message.request) {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			message.type = system->ptable[index].pid;
 			message.safe = safe(system->ptable, queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
-		} else if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		}
+		
+		advanceClock();
+		
+		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		
 		count++;
 
