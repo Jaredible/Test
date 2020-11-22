@@ -28,16 +28,32 @@
 
 #define log _log
 
-void initSystem();
+static char *programName;
+
+static int shmid = -1;
+static int msqid = -1;
+static int semid = -1;
+
+static System *system = NULL;
+static Message message;
+
+static int activeCount = 0;
+static int spawnCount = 0;
+static int exitCount = 0;
+
+static Queue *queue;
+static Time nextSpawn;
+static ResourceDescriptor descriptor;
+
+void semaLock(int);
+void semaRelease(int);
+void advanceClock();
+
 void initDescriptor();
 void printDescriptor();
-void simulate();
-void handleProcesses();
-void trySpawnProcess();
-void spawnProcess(int);
+
+void initSystem();
 void initPCB(pid_t, int);
-int findAvailablePID();
-void advanceClock();
 
 void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
@@ -46,36 +62,117 @@ void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
 bool safe(PCB*, Queue*, int);
 
 void init(int, char**);
+void error(char*, ...);
+void crash(char*);
 void usage(int);
-void timer(int);
 void registerSignalHandlers();
 void signalHandler(int);
+void timer(int);
 void initIPC();
 void freeIPC();
 void finalize();
-void error(char*, ...);
-void crash(char*);
 void log(char*, ...);
+int findAvailablePID();
 
-void semLock(int);
-void semUnlock(int);
-
-static char *programName;
 static bool verbose = false;
-
-static int shmid = -1;
-static int msqid = -1;
-static int semid = -1;
-static System *system = NULL;
-static Message message;
-
-static ResourceDescriptor descriptor;
-static Queue *queue;
-static Time nextSpawn;
 static pid_t pids[PROCESSES_MAX];
-static int activeCount = 0;
-static int spawnCount = 0;
-static int exitCount = 0;
+
+void spawnProcess(int spid) {
+	pid_t pid = fork();
+	pids[spid] = pid;
+
+	if (pid == -1) crash("fork");
+	else if (pid == 0) {
+		char arg[BUFFER_LENGTH];
+		snprintf(arg, BUFFER_LENGTH, "%d", spid);
+		execl("./user", "user", arg, (char*) NULL);
+		crash("execl");
+	}
+
+	initPCB(pid, spid);
+	queue_push(queue, spid);
+	activeCount++;
+	spawnCount++;
+	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
+}
+
+void trySpawnProcess() {
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
+		nextSpawn.ns = 0;
+		int spid = findAvailablePID();
+		if (spid >= 0) spawnProcess(spid);
+	}
+}
+
+void handleProcesses() {
+	int i, count = 0;
+	QueueNode *next = queue->front;
+	
+	while (next != NULL) {
+		advanceClock();
+
+		int index = next->index;
+		message.type = system->ptable[index].pid;
+		message.spid = index;
+		message.pid = system->ptable[index].pid;
+		msgsnd(msqid, &message, sizeof(Message), 0);
+
+		msgrcv(msqid, &message, sizeof(Message), 1, 0);
+
+		advanceClock();
+
+		if (message.terminate == TERMINATE) {
+			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+
+			queue_remove(queue, index);
+
+			next = queue->front;
+			for (i = 0; i < count; i++)
+				next = (next->next != NULL) ? next->next : NULL;
+
+			continue;
+		}
+
+		if (message.request) {
+			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+
+			message.type = system->ptable[index].pid;
+			message.safe = safe(system->ptable, queue, index);
+			msgsnd(msqid, &message, sizeof(Message), 0);
+		}
+
+		advanceClock();
+
+		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		
+		count++;
+
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+}
+
+void simulate() {
+	while (true) {
+		trySpawnProcess();
+
+		advanceClock();
+
+		handleProcesses();
+
+		advanceClock();
+
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
+		}
+
+		if (exitCount == PROCESSES_TOTAL) break;
+	}
+}
 
 int main(int argc, char **argv) {
 	init(argc, argv);
@@ -111,163 +208,33 @@ int main(int argc, char **argv) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
-	registerSignalHandlers();
-
 	initIPC();
+
+	memset(pids, 0, sizeof(pids));
+
+	system->clock.s = 0;
+	system->clock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
 
 	FILE *fp;
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
 	if (fclose(fp) == EOF) crash("fclose");
 
 	initSystem();
+
+	queue = queue_create();
 	initDescriptor();
 	printDescriptor();
 
-	memset(pids, 0, sizeof(pids));
-	queue = queue_create();
-	system->clock.s = 0;
-	system->clock.ns = 0;
-	nextSpawn.s = 0;
-	nextSpawn.ns = 0;
+	registerSignalHandlers();
 
 	simulate();
 
-	finalize();
+	timer(0);
+	signalHandler(0);
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
-}
-
-void initSystem() {
-	int i;
-	for (i = 0; i < PROCESSES_MAX; i++) {
-		system->ptable[i].spid = -1;
-		system->ptable[i].pid = -1;
-	}
-}
-
-void simulate() {
-	while (true) {
-		trySpawnProcess();
-		advanceClock();
-		handleProcesses();
-		advanceClock();
-
-		int status;
-		pid_t pid = waitpid(-1, &status, WNOHANG);
-		if (pid > 0) {
-			int spid = WEXITSTATUS(status);
-			pids[spid] = 0;
-			activeCount--;
-			exitCount++;
-		}
-
-		if (exitCount == PROCESSES_TOTAL) break;
-	}
-}
-
-void handleProcesses() {
-	int i, count = 0;
-	QueueNode *next = queue->front;
-	
-	while (next != NULL) {
-		advanceClock();
-
-		int index = next->index;
-		message.type = system->ptable[index].pid;
-		message.spid = index;
-		message.pid = system->ptable[index].pid;
-		msgsnd(msqid, &message, sizeof(Message), 0);
-
-		msgrcv(msqid, &message, sizeof(Message), 1, 0);
-
-		advanceClock();
-
-		if (message.terminate) {
-			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-
-			queue_remove(queue, index);
-
-			next = queue->front;
-			for (i = 0; i < count; i++)
-				next = (next->next != NULL) ? next->next : NULL;
-
-			continue;
-		} else if (message.request) {
-			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-
-			message.type = system->ptable[index].pid;
-			message.safe = safe(system->ptable, queue, index);
-			msgsnd(msqid, &message, sizeof(Message), 0);
-		} else if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-		
-		count++;
-
-		next = (next->next != NULL) ? next->next : NULL;
-	}
-}
-
-void trySpawnProcess() {
-	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
-		nextSpawn.ns = 0;
-		int spid = findAvailablePID();
-		if (spid >= 0) spawnProcess(spid);
-	}
-}
-
-void spawnProcess(int spid) {
-	pid_t pid = fork();
-	pids[spid] = pid;
-
-	if (pid == -1) crash("fork");
-	else if (pid == 0) {
-		char arg[BUFFER_LENGTH];
-		snprintf(arg, BUFFER_LENGTH, "%d", spid);
-		execl("./user", "user", arg, (char*) NULL);
-		crash("execl");
-	}
-
-	initPCB(pid, spid);
-	queue_push(queue, spid);
-	activeCount++;
-	spawnCount++;
-	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
-}
-
-void initPCB(pid_t pid, int spid) {
-	PCB *pcb = &system->ptable[spid];
-
-	pcb->pid = pid;
-	pcb->spid = spid;
-
-	int i;
-	for (i = 0; i < RESOURCES_MAX; i++) {
-		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
-		pcb->allocation[i] = 0;
-		pcb->request[i] = 0;
-		pcb->release[i] = 0;
-	}
-}
-
-int findAvailablePID() {
-	int i;
-	for (i = 0; i < PROCESSES_MAX; i++)
-		if (pids[i] == 0) return i;
-	return -1;
-}
-
-void advanceClock() {
-	semLock(0);
-
-	int rns = rand() % (1 * 1000000) + 1;
-	nextSpawn.ns += rns;
-	system->clock.ns += rns;
-
-	while (system->clock.ns >= (1000 * 1000000)) {
-		system->clock.s++;
-		system->clock.ns -= (1000 * 1000000);
-	}
-
-	semUnlock(0);
 }
 
 void registerSignalHandlers() {
@@ -289,17 +256,44 @@ void registerSignalHandlers() {
 
 void signalHandler(int sig) {
 	finalize();
-	exit(EXIT_SUCCESS);
-}
 
-void finalize() {
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
 	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 
 	freeIPC();
 
+	exit(EXIT_SUCCESS);
+}
+
+void finalize() {
+	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
 	kill(0, SIGUSR1);
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
+}
+
+void semaLock(int index) {
+	struct sembuf sop = { index, -1, 0 };
+	semop(semid, &sop, 1);
+}
+
+void semaRelease(const int index) {
+	struct sembuf sop = { index, 1, 0 };
+	semop(semid, &sop, 1);
+}
+
+void advanceClock() {
+	semaLock(0);
+
+	int rns = rand() % (1 * 1000000) + 1;
+	nextSpawn.ns += rns;
+	system->clock.ns += rns;
+
+	while (system->clock.ns >= (1000 * 1000000)) {
+		system->clock.s++;
+		system->clock.ns -= (1000 * 1000000);
+	}
+
+	semaRelease(0);
 }
 
 void initDescriptor() {
@@ -321,6 +315,29 @@ void printDescriptor() {
 	log(">\n\n");
 
 	log("Shareable resources: %d\n", descriptor.shared);
+}
+
+void initSystem() {
+	int i;
+	for (i = 0; i < PROCESSES_MAX; i++) {
+		system->ptable[i].spid = -1;
+		system->ptable[i].pid = -1;
+	}
+}
+
+void initPCB(pid_t pid, int spid) {
+	PCB *pcb = &system->ptable[spid];
+
+	pcb->pid = pid;
+	pcb->spid = spid;
+
+	int i;
+	for (i = 0; i < RESOURCES_MAX; i++) {
+		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
+		pcb->allocation[i] = 0;
+		pcb->request[i] = 0;
+		pcb->release[i] = 0;
+	}
 }
 
 void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
@@ -673,6 +690,13 @@ void log(char *fmt, ...) {
 	if (fclose(fp) == EOF) crash("fclose");
 }
 
+int findAvailablePID() {
+	int i;
+	for (i = 0; i < PROCESSES_MAX; i++)
+		if (pids[i] == 0) return i;
+	return -1;
+}
+
 void timer(int duration) {
 	struct itimerval val;
 	val.it_value.tv_sec = duration;
@@ -680,14 +704,4 @@ void timer(int duration) {
 	val.it_interval.tv_sec = 0;
 	val.it_interval.tv_usec = 0;
 	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
-}
-
-void semLock(int index) {
-	struct sembuf sop = { index, -1, 0 };
-	semop(semid, &sop, 1);
-}
-
-void semUnlock(const int index) {
-	struct sembuf sop = { index, 1, 0 };
-	semop(semid, &sop, 1);
 }

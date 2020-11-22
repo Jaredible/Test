@@ -26,85 +26,96 @@
 
 static char *programName;
 
+static int spid;
+
 static int shmid = -1;
 static int msqid = -1;
+
 static System *system = NULL;
 static Message message;
 
-void init(int, char**);
 void registerSignalHandlers();
 void signalHandler(int);
+
 void initIPC();
 void crash(char*);
+void init(int, char**);
 
 int main(int argc, char **argv) {
 	init(argc, argv);
 
 	registerSignalHandlers();
 
-	int spid = atoi(argv[1]);
-	printf("\t\t\tspid: %d\n", spid);
+	int i;
+	spid = atoi(argv[1]);
 
 	srand(time(NULL) ^ getpid());
 
 	initIPC();
 
-	bool started = false;
-	bool canTerminate = false;
-	bool requesting = false;
-	bool acquired = false;
-	Time arrival;
-	Time duration;
-	arrival.s = system->clock.s;
-	arrival.ns = system->clock.ns;
-	int i;
+	bool is_resource_once = false;
+	bool is_requesting = false;
+	bool is_acquire = false;
+	Time userStartClock;
+	Time userEndClock;
+	userStartClock.s = system->clock.s;
+	userStartClock.ns = system->clock.ns;
+	bool is_ran_duration = false;
 
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
-		if (!canTerminate) {
-			duration.s = system->clock.s;
-			duration.ns = system->clock.ns;
-			if (abs(duration.ns - arrival.ns) >= 10 * 1000 * 1000000) canTerminate = true;
-			else if (abs(duration.s - arrival.s) >= 1) canTerminate = true;
+		if (!is_ran_duration)
+		{
+			userEndClock.s = system->clock.s;
+			userEndClock.ns = system->clock.ns;
+			if (abs(userEndClock.ns - userStartClock.ns) >= 1000000000)
+			{
+				is_ran_duration = true;
+			}
+			else if (abs(userEndClock.s - userStartClock.s) >= 1)
+			{
+				is_ran_duration = true;
+			}
 		}
 
-		bool terminating = false;
-		bool releasing = false;
+		bool is_terminate = false;
+		bool is_releasing = false;
 		int choice;
-
-		if (!started || !canTerminate) choice = rand() % 2 + 0;
+		if (!is_resource_once || !is_ran_duration) choice = rand() % 2 + 0;
 		else choice = rand() % 3 + 0;
 
-		switch (choice) {
-			case 0:
-				started = true;
-				if (!requesting) {
-					for (i = 0; i < RESOURCES_MAX; i++)
-						system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
-					requesting = true;
+		if (choice == 0) {
+			is_resource_once = true;
+
+			if (!is_requesting) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
+					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
 				}
-				break;
-			case 1:
-				if (acquired) {
-					for (i = 0; i < RESOURCES_MAX; i++)
-						system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
-					releasing = true;
+				is_requesting = true;
+			}
+		}
+		else if (choice == 1) {
+			if (is_acquire) {
+				for (i = 0; i < RESOURCES_MAX; i++) {
+					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
 				}
-			case 2:
-				terminating = true;
-				break;
+				is_releasing = true;
+			}
+		}
+		else if (choice == 2) {
+			is_terminate = true;
 		}
 
 		message.type = 1;
-		message.terminate = terminating;
-		message.request = requesting;
-		message.release = releasing;
+		message.terminate = is_terminate ? 0 : 1;
+		message.request = is_requesting ? true : false;
+		message.release = is_releasing ? true : false;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
-		if (terminating) break;
+		if (is_terminate) break;
 		else {
-			if (requesting) {
+			if (is_requesting) {
 				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 				if (message.safe == true) {
@@ -113,29 +124,22 @@ int main(int argc, char **argv) {
 						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
 						system->ptable[spid].request[i] = 0;
 					}
-					requesting = false;
-					acquired = true;
+					is_requesting = false;
+					is_acquire = true;
 				}
 			}
 
-			if (releasing) {
+			if (is_releasing) {
 				for (i = 0; i < RESOURCES_MAX; i++) {
 					system->ptable[spid].allocation[i] -= system->ptable[spid].release[i];
 					system->ptable[spid].release[i] = 0;
 				}
-				acquired = false;
+				is_acquire = false;
 			}
 		}
 	}
 
-	exit(spid);
-}
-
-void init(int argc, char **argv) {
-	programName = argv[0];
-
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
+	return spid;
 }
 
 void registerSignalHandlers() {
@@ -173,4 +177,11 @@ void crash(char *msg) {
 	perror(buf);
 	
 	exit(EXIT_FAILURE);
+}
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 }
