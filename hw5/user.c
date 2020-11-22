@@ -26,8 +26,6 @@
 
 static char *programName;
 
-static int spid;
-
 static int shmid = -1;
 static int msqid = -1;
 
@@ -47,66 +45,64 @@ int main(int argc, char **argv) {
 	registerSignalHandlers();
 
 	int i;
-	spid = atoi(argv[1]);
+	int spid = atoi(argv[1]);
 
 	srand(time(NULL) ^ getpid());
 
 	initIPC();
 
-	bool is_resource_once = false;
-	bool is_requesting = false;
-	bool is_acquire = false;
-	Time userStartClock;
-	Time userEndClock;
-	userStartClock.s = system->clock.s;
-	userStartClock.ns = system->clock.ns;
-	bool is_ran_duration = false;
+	bool started = false;
+	bool requesting = false;
+	bool acquired = false;
+	Time arrival;
+	Time duration;
+	arrival.s = system->clock.s;
+	arrival.ns = system->clock.ns;
+	bool canTerminate = false;
 
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
-		if (!is_ran_duration) {
-			userEndClock.s = system->clock.s;
-			userEndClock.ns = system->clock.ns;
-			if (abs(userEndClock.ns - userStartClock.ns) >= 1000 * 1000000) is_ran_duration = true;
-			else if (abs(userEndClock.s - userStartClock.s) >= 1) is_ran_duration = true;
+		if (!canTerminate) {
+			duration.s = system->clock.s;
+			duration.ns = system->clock.ns;
+			if (abs(duration.ns - arrival.ns) >= 1000 * 1000000) canTerminate = true;
+			else if (abs(duration.s - arrival.s) >= 1) canTerminate = true;
 		}
 
-		bool is_terminate = false;
-		bool is_releasing = false;
+		bool terminating = false;
+		bool releasing = false;
 		int choice;
 
-		if (!is_resource_once || !is_ran_duration) choice = rand() % 2 + 0;
+		if (!started || !canTerminate) choice = rand() % 2 + 0;
 		else choice = rand() % 3 + 0;
 
 		if (choice == 0) {
-			is_resource_once = true;
-
-			if (!is_requesting) {
-				for (i = 0; i < RESOURCES_MAX; i++) {
+			started = true;
+			if (!requesting) {
+				for (i = 0; i < RESOURCES_MAX; i++)
 					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
-				}
-				is_requesting = true;
+				requesting = true;
 			}
 		} else if (choice == 1) {
-			if (is_acquire) {
+			if (acquired) {
 				for (i = 0; i < RESOURCES_MAX; i++)
 					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
-				is_releasing = true;
+				releasing = true;
 			}
 		} else if (choice == 2) {
-			is_terminate = true;
+			terminating = true;
 		}
 
 		message.type = 1;
-		message.terminate = is_terminate;
-		message.request = is_requesting;
-		message.release = is_releasing;
+		message.terminate = terminating;
+		message.request = requesting;
+		message.release = releasing;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
-		if (is_terminate) break;
+		if (terminating) break;
 		else {
-			if (is_requesting) {
+			if (requesting) {
 				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 				if (message.safe == true) {
@@ -115,17 +111,17 @@ int main(int argc, char **argv) {
 						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
 						system->ptable[spid].request[i] = 0;
 					}
-					is_requesting = false;
-					is_acquire = true;
+					requesting = false;
+					acquired = true;
 				}
 			}
 
-			if (is_releasing) {
+			if (releasing) {
 				for (i = 0; i < RESOURCES_MAX; i++) {
 					system->ptable[spid].allocation[i] -= system->ptable[spid].release[i];
 					system->ptable[spid].release[i] = 0;
 				}
-				is_acquire = false;
+				acquired = false;
 			}
 		}
 	}
