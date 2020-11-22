@@ -260,6 +260,7 @@ void signalHandler(int sig) {
 }
 
 void finalize() {
+	fprintf(stderr, "\n\n");
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
 	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 
