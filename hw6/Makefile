@@ -1,12 +1,12 @@
 CC         = gcc
 CFLAGS     = -Wall -g
 
-STANDARD   = standardlib.h constant.h shared.h
-SRC        = helper.h queue.h linklist.h
+STANDARD   = shared.h
+SRC        = helper.h queue.h list.h
 MASTER_SRC = oss.c
 USER_SRC   = user.c
 
-OBJ        = helper.o queue.o linklist.o
+OBJ        = helper.o queue.o list.o
 MASTER_OBJ = $(MASTER_SRC:.c=.o)
 USER_OBJ   = $(USER_SRC:.c=.o)
 

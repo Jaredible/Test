@@ -1,35 +1,30 @@
-/* ====================================================================================================
-# Author: Duc Ngo
-# Course: CS4760-001 - Operating System
-# File Name: queue.h
-# Date: 10/30/2019
-==================================================================================================== */
-#ifndef MY_QUEUE_H
-#define MY_QUEUE_H
+/*
+ * queue.h November 21, 2020
+ * Jared Diehl (jmddnb@umsystem.edu)
+ */
 
+#ifndef QUEUE_H
+#define QUEUE_H
 
-typedef struct NodeQ
-{ 
+#include <stdbool.h>
+
+typedef struct Node {
 	int index;
-	struct NodeQ *next;
-}QNode; 
+	struct Node *next;
+} QueueNode;
 
-
-typedef struct
-{ 
-	QNode *front;
-	QNode *rear;
+typedef struct {
+	QueueNode *front;
+	QueueNode *rear;
 	int count;
-}Queue; 
+} Queue;
 
-
-Queue *createQueue();
-QNode *newQNode(int index);
-void enQueue(Queue* q, int index);
-QNode *deQueue(Queue *q);
-bool isQueueEmpty(Queue *q);
-int getQueueCount(Queue *q);
-char *getQueue(const Queue *q);
+Queue *queue_create();
+QueueNode *queue_node(int);
+void queue_push(Queue*, int);
+QueueNode *queue_pop(Queue*);
+void queue_remove(Queue*, int);
+bool queue_empty(Queue*);
+int queue_size(Queue*);
 
 #endif
-

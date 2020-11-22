@@ -13,12 +13,30 @@
 	This bit is necessary to consider dirty bit optimization when determining how much time these 
 	operations take. The dirty bit will be implemented as a part of the page table.
 ==================================================================================================== */
-#include "standardlib.h"
+#include <stdlib.h>     //exit()
+#include <stdio.h>      //printf()
+#include <stdbool.h>    //bool variable
+#include <stdint.h>     //for uint32_t
+#include <string.h>     //str function
+#include <unistd.h>     //standard symbolic constants and types
+
+#include <stdarg.h>     //va macro
+#include <errno.h>      //errno variable
+#include <signal.h>     //signal handling
+#include <sys/ipc.h>    //IPC flags
+#include <sys/msg.h>    //message queue stuff
+#include <sys/shm.h>    //shared memory stuff
+#include <sys/sem.h>    //semaphore stuff, semget()
+#include <sys/time.h>   //setitimer()
+#include <sys/types.h>  //contains a number of basic derived types
+#include <sys/wait.h>   //waitpid()
+#include <time.h>       //time()
+#include <math.h>		//ceil(), floor()
+
 #include "helper.h"
-#include "constant.h"
 #include "shared.h"
 #include "queue.h"
-#include "linklist.h"
+#include "list.h"
 
 
 
@@ -260,7 +278,7 @@ int main(int argc, char *argv[])
 	//--------------------------------------------------
 	/* ===== Queue/Resource ===== */
 	//Set up queue
-	queue = createQueue();
+	queue = queue_create();
 	reference_string = createList();
 	if(algorithm_choice == 1)
 	{
@@ -372,7 +390,7 @@ int main(int argc, char *argv[])
 					initPCB(&pcbt_shmptr[last_index], last_index, pid);
 
 					//Add the process to highest queue
-					enQueue(queue, last_index);
+					queue_push(queue, last_index);
 
 					//Display creation time
 					printWrite(fpw, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name, 
@@ -388,8 +406,8 @@ int main(int argc, char *argv[])
 		//--------------------------------------------------
 		/* =====Main Driver Procedure===== */
 		//Application procedure queues
-		QNode qnext;
-		Queue *trackingQueue = createQueue();
+		QueueNode qnext;
+		Queue *trackingQueue = queue_create();
 
 		qnext.next = queue->front;
 		while(qnext.next != NULL)
@@ -432,7 +450,7 @@ int main(int argc, char *argv[])
 			{
 				//- CRITICAL SECTION -//
 				total_access_time += incShmclock(0);
-				enQueue(trackingQueue, c_index);
+				queue_pushqueue_push(trackingQueue, c_index);
 
 				//- Allocate Frames Procedure -//
 				unsigned int address = master_message.address;
@@ -671,15 +689,15 @@ int main(int argc, char *argv[])
 
 		//--------------------------------------------------
 		//Reassigned the current queue
-		while(!isQueueEmpty(queue))
+		while(!queue_empty(queue))
 		{
-			deQueue(queue);
+			queue_pop(queue);
 		}
-		while(!isQueueEmpty(trackingQueue))
+		while(!queue_empty(trackingQueue))
 		{
 			int i = trackingQueue->front->index;
-			enQueue(queue, i);
-			deQueue(trackingQueue);
+			queue_push(queue, i);
+			queue_pop(trackingQueue);
 		}
 		free(trackingQueue);
 		
