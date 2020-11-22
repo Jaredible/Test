@@ -333,7 +333,7 @@ void initPCB(pid_t pid, int spid) {
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
-		pcb->allocation[i] = rand() % 5;
+		pcb->allocation[i] = 0;
 		pcb->request[i] = 0;
 		pcb->release[i] = 0;
 	}
