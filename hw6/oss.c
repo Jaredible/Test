@@ -47,7 +47,8 @@ static int percentage = 0;
 static char log_file[256] = "fifolog.dat";
 static char isDebugMode = false;
 static char isDisplayTerminal = false;
-static int algorithm_choice = 0;
+static int scheme_choice = 0;
+static int algorithm_choice = 1;
 static key_t key;
 static Queue *queue;
 static SharedClock forkclock;
@@ -153,9 +154,9 @@ int main(int argc, char *argv[])
 				isDisplayTerminal = true;
 				break;
 
-			case 'a':
-				algorithm_choice = atoi(optarg);
-				algorithm_choice = (algorithm_choice < 0 || algorithm_choice > 1) ? 0 : algorithm_choice;
+			case 'm':
+				scheme_choice = atoi(optarg);
+				scheme_choice = (scheme_choice < 0 || scheme_choice > 1) ? 0 : scheme_choice;
 				if(algorithm_choice == 1)
 				{
 					strncpy(log_file, "lrulog.dat", 255);
@@ -166,6 +167,11 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "%s: please use \"-h\" option for more info.\n", exe_name);
 				exit(EXIT_FAILURE);
 		}
+	}
+
+	if(algorithm_choice == 1)
+	{
+		strncpy(log_file, "lrulog.dat", 255);
 	}
 	
 	//Check for extra arguments
@@ -280,10 +286,7 @@ int main(int argc, char *argv[])
 	//Set up queue
 	queue = queue_create();
 	reference_string = createList();
-	if(algorithm_choice == 1)
-	{
-		lru_stack = createList();
-	}
+	lru_stack = createList();
 
 
 	//--------------------------------------------------
