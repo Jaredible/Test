@@ -58,6 +58,7 @@ int main(int argc, char **argv) {
 	arrival.s = system->clock.s;
 	arrival.ns = system->clock.ns;
 	bool canTerminate = false;
+	int i;
 
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
@@ -79,14 +80,12 @@ int main(int argc, char **argv) {
 		if (choice == 0) {
 			started = true;
 			if (!requesting) {
-				int i;
 				for (i = 0; i < RESOURCES_MAX; i++)
 					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
 				requesting = true;
 			}
 		} else if (choice == 1) {
 			if (acquired) {
-				int i;
 				for (i = 0; i < RESOURCES_MAX; i++)
 					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
 				releasing = true;
@@ -107,7 +106,6 @@ int main(int argc, char **argv) {
 				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 				if (message.safe == true) {
-					int i;
 					for (i = 0; i < RESOURCES_MAX; i++) {
 						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
 						system->ptable[spid].request[i] = 0;
@@ -118,7 +116,6 @@ int main(int argc, char **argv) {
 			}
 
 			if (releasing) {
-				int i;
 				for (i = 0; i < RESOURCES_MAX; i++) {
 					system->ptable[spid].allocation[i] -= system->ptable[spid].release[i];
 					system->ptable[spid].release[i] = 0;
