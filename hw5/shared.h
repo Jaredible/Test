@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #define system _system
 

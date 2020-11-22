@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
 	//--------------------------------------------------
 	/* ===== Queue/Resource ===== */
 	//Set up queue
-	queue = createQueue();
+	queue = queue_create();
 	initResource(&data);
 	displayResource(fpw, data);
 
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 					initPCB(&pcbt_shmptr[last_index], last_index, pid, data);
 
 					//Add the process to highest queue
-					enQueue(queue, last_index);
+					queue_push(queue, last_index);
 
 					//Display creation time
 					fprintf(stderr, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name, 
@@ -387,7 +387,7 @@ int main(int argc, char *argv[])
 				{
 					if(current.next->index != c_index)
 					{
-						enQueue(trackingQueue, current.next->index);
+						queue_push(trackingQueue, current.next->index);
 					}
 
 					//Point the pointer to the next queue element
@@ -395,16 +395,16 @@ int main(int argc, char *argv[])
 				}
 
 				//Reassigned the current queue
-				while(!isQueueEmpty(queue))
+				while(!queue_empty(queue))
 				{
-					deQueue(queue);
+					queue_pop(queue);
 				}
-				while(!isQueueEmpty(trackingQueue))
+				while(!queue_empty(trackingQueue))
 				{
 					int i = trackingQueue->front->index;
 					//DEBUG fprintf(stderr, "Tracking Queue i: %d\n", i);
-					enQueue(queue, i);
-					deQueue(trackingQueue);
+					queue_push(queue, i);
+					queue_pop(trackingQueue);
 				}
 
 				//Point the pointer to the next queue element
