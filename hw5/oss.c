@@ -33,7 +33,6 @@ static char *programName;
 static int shmid = -1;
 static int msqid = -1;
 static int semid = -1;
-
 static System *system = NULL;
 static Message message;
 
@@ -44,6 +43,12 @@ static int exitCount = 0;
 static Queue *queue;
 static Time nextSpawn;
 static ResourceDescriptor descriptor;
+
+void simulate();
+void handleProcesses();
+void trySpawnProcess();
+void spawnProcess(int);
+int findAvailablePID();
 
 void semaLock(int);
 void semaRelease(int);
@@ -62,8 +67,6 @@ void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
 bool safe(PCB*, Queue*, int);
 
 void init(int, char**);
-void error(char*, ...);
-void crash(char*);
 void usage(int);
 void registerSignalHandlers();
 void signalHandler(int);
@@ -71,108 +74,12 @@ void timer(int);
 void initIPC();
 void freeIPC();
 void finalize();
+void error(char*, ...);
+void crash(char*);
 void log(char*, ...);
-int findAvailablePID();
 
 static bool verbose = false;
 static pid_t pids[PROCESSES_MAX];
-
-void spawnProcess(int spid) {
-	pid_t pid = fork();
-	pids[spid] = pid;
-
-	if (pid == -1) crash("fork");
-	else if (pid == 0) {
-		char arg[BUFFER_LENGTH];
-		snprintf(arg, BUFFER_LENGTH, "%d", spid);
-		execl("./user", "user", arg, (char*) NULL);
-		crash("execl");
-	}
-
-	initPCB(pid, spid);
-	queue_push(queue, spid);
-	activeCount++;
-	spawnCount++;
-	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
-}
-
-void trySpawnProcess() {
-	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
-		nextSpawn.ns = 0;
-		int spid = findAvailablePID();
-		if (spid >= 0) spawnProcess(spid);
-	}
-}
-
-void handleProcesses() {
-	int i, count = 0;
-	QueueNode *next = queue->front;
-	
-	while (next != NULL) {
-		advanceClock();
-
-		int index = next->index;
-		message.type = system->ptable[index].pid;
-		message.spid = index;
-		message.pid = system->ptable[index].pid;
-		msgsnd(msqid, &message, sizeof(Message), 0);
-
-		msgrcv(msqid, &message, sizeof(Message), 1, 0);
-
-		advanceClock();
-
-		if (message.terminate == TERMINATE) {
-			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-
-			queue_remove(queue, index);
-
-			next = queue->front;
-			for (i = 0; i < count; i++)
-				next = (next->next != NULL) ? next->next : NULL;
-
-			continue;
-		}
-
-		if (message.request) {
-			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-
-			message.type = system->ptable[index].pid;
-			message.safe = safe(system->ptable, queue, index);
-			msgsnd(msqid, &message, sizeof(Message), 0);
-		}
-
-		advanceClock();
-
-		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
-		
-		count++;
-
-		next = (next->next != NULL) ? next->next : NULL;
-	}
-}
-
-void simulate() {
-	while (true) {
-		trySpawnProcess();
-
-		advanceClock();
-
-		handleProcesses();
-
-		advanceClock();
-
-		int status;
-		pid_t pid = waitpid(-1, &status, WNOHANG);
-		if (pid > 0) {
-			int spid = WEXITSTATUS(status);
-			pids[spid] = 0;
-			activeCount--;
-			exitCount++;
-		}
-
-		if (exitCount == PROCESSES_TOTAL) break;
-	}
-}
 
 int main(int argc, char **argv) {
 	init(argc, argv);
@@ -235,6 +142,100 @@ int main(int argc, char **argv) {
 	signalHandler(0);
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+void simulate() {
+	while (true) {
+		trySpawnProcess();
+		advanceClock();
+		handleProcesses();
+		advanceClock();
+
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
+		}
+
+		if (exitCount == PROCESSES_TOTAL) break;
+	}
+}
+
+void handleProcesses() {
+	int i, count = 0;
+	QueueNode *next = queue->front;
+	
+	while (next != NULL) {
+		advanceClock();
+
+		int index = next->index;
+		message.type = system->ptable[index].pid;
+		message.spid = index;
+		message.pid = system->ptable[index].pid;
+		msgsnd(msqid, &message, sizeof(Message), 0);
+
+		msgrcv(msqid, &message, sizeof(Message), 1, 0);
+
+		advanceClock();
+
+		if (message.terminate == TERMINATE) {
+			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+
+			queue_remove(queue, index);
+
+			next = queue->front;
+			for (i = 0; i < count; i++)
+				next = (next->next != NULL) ? next->next : NULL;
+
+			continue;
+		}
+
+		if (message.request) {
+			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+
+			message.type = system->ptable[index].pid;
+			message.safe = safe(system->ptable, queue, index);
+			msgsnd(msqid, &message, sizeof(Message), 0);
+		}
+
+		advanceClock();
+
+		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		
+		count++;
+
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+}
+
+void trySpawnProcess() {
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
+		nextSpawn.ns = 0;
+		int spid = findAvailablePID();
+		if (spid >= 0) spawnProcess(spid);
+	}
+}
+
+void spawnProcess(int spid) {
+	pid_t pid = fork();
+	pids[spid] = pid;
+
+	if (pid == -1) crash("fork");
+	else if (pid == 0) {
+		char arg[BUFFER_LENGTH];
+		snprintf(arg, BUFFER_LENGTH, "%d", spid);
+		execl("./user", "user", arg, (char*) NULL);
+		crash("execl");
+	}
+
+	initPCB(pid, spid);
+	queue_push(queue, spid);
+	activeCount++;
+	spawnCount++;
+	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
 }
 
 void registerSignalHandlers() {
