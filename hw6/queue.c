@@ -1,5 +1,5 @@
 /*
- * queue.c November 21, 2020
+ * queue.c November 23, 2020
  * Jared Diehl (jmddnb@umsystem.edu)
  */
 
