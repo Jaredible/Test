@@ -24,27 +24,28 @@
 
 #include "shared.h"
 
-void init(int, char**);
-void registerSignalHandlers();
-void signalHandler(int);
-void initIPC();
-void crash(char*);
-
 static char *programName;
 
 static int shmid = -1;
 static int msqid = -1;
+
 static System *system = NULL;
 static Message message;
 
-static int spid;
+void registerSignalHandlers();
+void signalHandler(int);
+
+void initIPC();
+void crash(char*);
+void init(int, char**);
 
 int main(int argc, char **argv) {
 	init(argc, argv);
 
-	spid = atoi(argv[1]);
-
 	registerSignalHandlers();
+
+	int i;
+	int spid = atoi(argv[1]);
 
 	srand(time(NULL) ^ getpid());
 
@@ -58,7 +59,6 @@ int main(int argc, char **argv) {
 	arrival.s = system->clock.s;
 	arrival.ns = system->clock.ns;
 	bool canTerminate = false;
-	int i;
 
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
@@ -106,7 +106,8 @@ int main(int argc, char **argv) {
 				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 				if (message.safe == true) {
-					for (i = 0; i < RESOURCES_MAX; i++) {
+					for (i = 0; i < RESOURCES_MAX; i++)
+					{
 						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
 						system->ptable[spid].request[i] = 0;
 					}
@@ -128,13 +129,6 @@ int main(int argc, char **argv) {
 	return spid;
 }
 
-void init(int argc, char **argv) {
-	programName = argv[0];
-
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
-}
-
 void registerSignalHandlers() {
 	struct sigaction sa;
 	sigemptyset(&sa.sa_mask);
@@ -149,8 +143,8 @@ void registerSignalHandlers() {
 }
 
 void signalHandler(int sig) {
-	printf("%d Terminated!\n", spid);
-	exit(EXIT_FAILURE);
+	printf("%d: Terminated!\n", getpid());
+	exit(2);
 }
 
 void initIPC() {
@@ -170,4 +164,11 @@ void crash(char *msg) {
 	perror(buf);
 	
 	exit(EXIT_FAILURE);
+}
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 }
