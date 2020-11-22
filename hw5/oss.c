@@ -60,10 +60,10 @@ void printDescriptor();
 void initSystem();
 void initPCB(pid_t, int);
 
-void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
-void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
-void printVector(char*, char*, int vector[RESOURCES_MAX]);
-void printMatrix(char*, Queue*, int matrix[][RESOURCES_MAX], int);
+void setMatrix(PCB*, Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
+void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
+void printVector(char*, char*, int[RESOURCES_MAX]);
+void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
 bool safe(PCB*, Queue*, int);
 
 void init(int, char**);
@@ -365,7 +365,7 @@ void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][R
 	}
 }
 
-void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
+void calculateNeed(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
 	int i, j;
 	for (i = 0; i < count; i++)
 	{
@@ -432,7 +432,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	int avail[RESOURCES_MAX];
 
 	setMatrix(pcbt, queue, maxm, allot, count);
-	calculateNeedMatrix(need, maxm, allot, count);
+	calculateNeed(need, maxm, allot, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
