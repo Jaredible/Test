@@ -86,6 +86,7 @@ int main(int argc, char **argv) {
 			}
 		} else if (choice == 1) {
 			if (acquired) {
+				int i;
 				for (i = 0; i < RESOURCES_MAX; i++)
 					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
 				releasing = true;
