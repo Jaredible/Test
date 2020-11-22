@@ -339,41 +339,30 @@ void initPCB(pid_t pid, int spid) {
 	}
 }
 
-void setMatrix(PCB *pcbt, Queue *queue, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
+void setMatrix(PCB *pcb, Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
 	QueueNode next;
 	next.next = queue->front;
 
 	int i, j;
-	int c_index = next.next->index;
-	for (i = 0; i < count; i++)
-	{
-		for (j = 0; j < RESOURCES_MAX; j++)
-		{
-			maxm[i][j] = pcbt[c_index].maximum[j];
-			allot[i][j] = pcbt[c_index].allocation[j];
+	int index = next.next->index;
+	for (i = 0; i < count; i++) {
+		for (j = 0; j < RESOURCES_MAX; j++) {
+			max[i][j] = pcb[index].maximum[j];
+			alloc[i][j] = pcb[index].allocation[j];
 		}
 
-		if (next.next->next != NULL)
-		{
+		if (next.next->next != NULL) {
 			next.next = next.next->next;
-			c_index = next.next->index;
-		}
-		else
-		{
-			next.next = NULL;
-		}
+			index = next.next->index;
+		} else next.next = NULL;
 	}
 }
 
-void calculateNeed(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int count) {
+void calculateNeed(int need[][RESOURCES_MAX], int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
 	int i, j;
 	for (i = 0; i < count; i++)
-	{
 		for (j = 0; j < RESOURCES_MAX; j++)
-		{
-			need[i][j] = maxm[i][j] - allot[i][j];
-		}
-	}
+			need[i][j] = max[i][j] - alloc[i][j];
 }
 
 void printVector(char *title, int vector[RESOURCES_MAX]) {
@@ -387,12 +376,12 @@ void printVector(char *title, int vector[RESOURCES_MAX]) {
 	log("\n");
 }
 
-void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count) {
+void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int count) {
 	QueueNode *next;
 	next = queue->front;
 
 	int i, j;
-	log("%s Matrix\n", m_name);
+	log("%s Matrix\n", title);
 
 	for (i = 0; i < count; i++) {
 		log("P%2d :", next->index);
@@ -406,7 +395,7 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 	}
 }
 
-bool safe(PCB *pcbt, Queue *queue, int c_index) {
+bool safe(PCB *pcb, Queue *queue, int index) {
 	int i, p, j, k;
 
 	QueueNode next;
@@ -414,44 +403,42 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	if (next.next == NULL) return true;
 
 	int count = queue_size(queue);
-	int maxm[count][RESOURCES_MAX];
-	int allot[count][RESOURCES_MAX];
+	int max[count][RESOURCES_MAX];
+	int alloc[count][RESOURCES_MAX];
 	int req[RESOURCES_MAX];
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	setMatrix(pcbt, queue, maxm, allot, count);
-	calculateNeed(need, maxm, allot, count);
+	setMatrix(pcb, queue, max, alloc, count);
+	calculateNeed(need, max, alloc, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
-		req[i] = pcbt[c_index].request[i];
+		req[i] = pcb[index].request[i];
 	}
 
 	for (i = 0; i < count; i++)
 		for (j = 0; j < RESOURCES_MAX; j++)
-			avail[j] = avail[j] - allot[i][j];
+			avail[j] = avail[j] - alloc[i][j];
 
 	int idx = 0;
 	next.next = queue->front;
-	while (next.next != NULL)
-	{
-		if (next.next->index == c_index) break;
+	while (next.next != NULL) {
+		if (next.next->index == index) break;
 		idx++;
-
 		next.next = (next.next->next != NULL) ? next.next->next : NULL;
 	}
 
 	if (verbose) {
-		printMatrix("Maximum", queue, maxm, count);
-		printMatrix("Allocation", queue, allot, count);
+		printMatrix("Maximum", queue, max, count);
+		printMatrix("Allocation", queue, alloc, count);
 		char buf[BUFFER_LENGTH];
-		sprintf(buf, "P%2d Request", c_index);
+		sprintf(buf, "P%2d Request", index);
 		printVector(buf, req);
 	}
 
 	bool finish[count];
-	int safeSeq[count];
+	int sequence[count];
 	memset(finish, 0, count * sizeof(finish[0]));
 
 	int work[RESOURCES_MAX];
@@ -472,7 +459,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 
 		if (req[j] <= avail[j] && j < descriptor.shared) {
 			avail[j] -= req[j];
-			allot[idx][j] += req[j];
+			alloc[idx][j] += req[j];
 			need[idx][j] -= req[j];
 		} else {
 			log("\tNot enough available resources\n");
@@ -496,9 +483,9 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 
 				if (j == RESOURCES_MAX) {
 					for (k = 0; k < RESOURCES_MAX; k++)
-						work[k] += allot[p][k];
+						work[k] += alloc[p][k];
 
-					safeSeq[index++] = p;
+					sequence[index++] = p;
 					finish[p] = 1;
 					found = true;
 				}
@@ -526,7 +513,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 
 	log("System is in SAFE state. Safe sequence is: ");
 	for (i = 0; i < count; i++)
-		log("%2d ", sequence[safeSeq[i]]);
+		log("%2d ", sequence[sequence[i]]);
 	log("\n\n");
 
 	return true;
