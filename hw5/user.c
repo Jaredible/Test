@@ -24,14 +24,6 @@
 
 #include "shared.h"
 
-static char *programName;
-
-static int shmid = -1;
-static int msqid = -1;
-
-static System *system = NULL;
-static Message message;
-
 void registerSignalHandlers();
 void signalHandler(int);
 
@@ -39,13 +31,21 @@ void initIPC();
 void crash(char*);
 void init(int, char**);
 
+static char *programName;
+
+static int shmid = -1;
+static int msqid = -1;
+static System *system = NULL;
+static Message message;
+
+static int spid;
+
 int main(int argc, char **argv) {
 	init(argc, argv);
 
 	registerSignalHandlers();
 
-	int i;
-	int spid = atoi(argv[1]);
+	spid = atoi(argv[1]);
 
 	srand(time(NULL) ^ getpid());
 
@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
 	arrival.s = system->clock.s;
 	arrival.ns = system->clock.ns;
 	bool canTerminate = false;
+	int i;
 
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
@@ -129,6 +130,13 @@ int main(int argc, char **argv) {
 	return spid;
 }
 
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+}
+
 void registerSignalHandlers() {
 	struct sigaction sa;
 	sigemptyset(&sa.sa_mask);
@@ -164,11 +172,4 @@ void crash(char *msg) {
 	perror(buf);
 	
 	exit(EXIT_FAILURE);
-}
-
-void init(int argc, char **argv) {
-	programName = argv[0];
-
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
 }
