@@ -260,15 +260,16 @@ int main(int argc, char **argv) {
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
 	if (fclose(fp) == EOF) crash("fclose");
 
-	initSystem();
-	initDescriptor();
-	printDescriptor();
 	memset(pids, 0, sizeof(pids));
 	queue = queue_create();
 	system->clock.s = 0;
 	system->clock.ns = 0;
 	nextSpawn.s = 0;
 	nextSpawn.ns = 0;
+
+	initSystem();
+	initDescriptor();
+	printDescriptor();
 
 	registerSignalHandlers();
 
