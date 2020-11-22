@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	return spid;
+	exit(spid);
 }
 
 void init(int argc, char **argv) {
