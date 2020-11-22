@@ -78,6 +78,67 @@ static int activeCount = 0;
 static int spawnCount = 0;
 static int exitCount = 0;
 
+int main(int argc, char **argv) {
+	init(argc, argv);
+
+	srand(time(NULL) ^ getpid());
+
+	bool ok = true;
+
+	while (true) {
+		int c = getopt(argc, argv, "hv");
+		if (c == -1) break;
+		switch (c) {
+			case 'h':
+				usage(EXIT_SUCCESS);
+			case 'v':
+				verbose = true;
+				break;
+			default:
+				ok = false;
+		}
+	}
+
+	if (optind < argc) {
+		char buf[BUFFER_LENGTH];
+		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
+		while (optind < argc) {
+			strncat(buf, argv[optind++], BUFFER_LENGTH);
+			if (optind < argc) strncat(buf, ", ", BUFFER_LENGTH);
+		}
+		error(buf);
+		ok = false;
+	}
+	
+	if (!ok) usage(EXIT_FAILURE);
+
+	registerSignalHandlers();
+
+	initIPC();
+
+	FILE *fp;
+	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
+	if (fclose(fp) == EOF) crash("fclose");
+
+	initSystem();
+	initDescriptor();
+	printDescriptor();
+
+	memset(pids, 0, sizeof(pids));
+	queue = queue_create();
+	system->clock.s = 0;
+	system->clock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
+
+	simulate();
+
+	timer(0);
+	signalHandler(0);
+
+	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
 void initSystem() {
 	int i;
 	for (i = 0; i < PROCESSES_MAX; i++) {
@@ -220,67 +281,6 @@ void advanceClock() {
 	semUnlock(0);
 }
 
-int main(int argc, char **argv) {
-	init(argc, argv);
-
-	srand(time(NULL) ^ getpid());
-
-	bool ok = true;
-
-	while (true) {
-		int c = getopt(argc, argv, "hv");
-		if (c == -1) break;
-		switch (c) {
-			case 'h':
-				usage(EXIT_SUCCESS);
-			case 'v':
-				verbose = true;
-				break;
-			default:
-				ok = false;
-		}
-	}
-
-	if (optind < argc) {
-		char buf[BUFFER_LENGTH];
-		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
-		while (optind < argc) {
-			strncat(buf, argv[optind++], BUFFER_LENGTH);
-			if (optind < argc) strncat(buf, ", ", BUFFER_LENGTH);
-		}
-		error(buf);
-		ok = false;
-	}
-	
-	if (!ok) usage(EXIT_FAILURE);
-
-	registerSignalHandlers();
-
-	initIPC();
-
-	FILE *fp;
-	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
-	if (fclose(fp) == EOF) crash("fclose");
-
-	initSystem();
-	initDescriptor();
-	printDescriptor();
-
-	memset(pids, 0, sizeof(pids));
-	queue = queue_create();
-	system->clock.s = 0;
-	system->clock.ns = 0;
-	nextSpawn.s = 0;
-	nextSpawn.ns = 0;
-
-	simulate();
-
-	timer(0);
-	signalHandler(0);
-
-	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
-}
-
 void registerSignalHandlers() {
 	timer(TIMEOUT);
 
@@ -313,16 +313,6 @@ void finalize() {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
 	kill(0, SIGUSR1);
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
-}
-
-void semLock(int index) {
-	struct sembuf sop = { index, -1, 0 };
-	semop(semid, &sop, 1);
-}
-
-void semUnlock(const int index) {
-	struct sembuf sop = { index, 1, 0 };
-	semop(semid, &sop, 1);
 }
 
 void initDescriptor() {
@@ -703,4 +693,14 @@ void timer(int duration) {
 	val.it_interval.tv_sec = 0;
 	val.it_interval.tv_usec = 0;
 	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
+}
+
+void semLock(int index) {
+	struct sembuf sop = { index, -1, 0 };
+	semop(semid, &sop, 1);
+}
+
+void semUnlock(const int index) {
+	struct sembuf sop = { index, 1, 0 };
+	semop(semid, &sop, 1);
 }
