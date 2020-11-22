@@ -377,19 +377,14 @@ void calculateNeed(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int all
 }
 
 void printVector(char *v_name, char *l_name, int vector[RESOURCES_MAX]) {
-	log("===%s Resource===\n%3s :  <", v_name, l_name);
+	log("%s Resource\n%3s :  ", v_name, l_name);
 
 	int i;
-	for (i = 0; i < RESOURCES_MAX; i++)
-	{
+	for (i = 0; i < RESOURCES_MAX; i++) {
 		log("%2d", vector[i]);
-
-		if (i < RESOURCES_MAX - 1)
-		{
-			log(" | ");
-		}
+		if (i < RESOURCES_MAX - 1) log(" | ");
 	}
-	log(">\n");
+	log("\n");
 }
 
 void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count) {
@@ -401,13 +396,12 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 
 	for (i = 0; i < count; i++) {
 		log("P%2d :", next->index);
-
 		for (j = 0; j < RESOURCES_MAX; j++) {
 			log("%2d", matrix[i][j]);
 			if (j < RESOURCES_MAX - 1) log(" | ");
 		}
-
 		log("\n");
+
 		next = (next->next != NULL) ? next->next : NULL;
 	}
 }
