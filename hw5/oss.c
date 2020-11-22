@@ -207,7 +207,7 @@ void handleProcesses() {
 }
 
 void trySpawnProcess() {
-	if (nextSpawn.ns >= 100) {
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
 		nextSpawn.ns = 0;
 		int spid = findAvailablePID();
 		if (spid >= 0) spawnProcess(spid);
