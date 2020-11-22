@@ -438,7 +438,7 @@ bool safe(PCB *pcb, Queue *queue, int index) {
 	}
 
 	bool finish[count];
-	int sequence[count];
+	int ss[count];
 	memset(finish, 0, count * sizeof(finish[0]));
 
 	int work[RESOURCES_MAX];
@@ -485,7 +485,7 @@ bool safe(PCB *pcb, Queue *queue, int index) {
 					for (k = 0; k < RESOURCES_MAX; k++)
 						work[k] += alloc[p][k];
 
-					sequence[i++] = p;
+					ss[i++] = p;
 					finish[p] = 1;
 					found = true;
 				}
@@ -513,7 +513,7 @@ bool safe(PCB *pcb, Queue *queue, int index) {
 
 	log("System is in SAFE state. Safe sequence is: ");
 	for (i = 0; i < count; i++)
-		log("%2d ", sequence[sequence[i]]);
+		log("%2d ", sequence[ss[i]]);
 	log("\n\n");
 
 	return true;
