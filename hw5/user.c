@@ -49,19 +49,17 @@ int main(int argc, char **argv) {
 	initIPC();
 
 	bool started = false;
+	bool canTerminate = false;
 	bool requesting = false;
 	bool acquired = false;
 	Time arrival;
 	Time duration;
 	arrival.s = system->clock.s;
 	arrival.ns = system->clock.ns;
-	bool canTerminate = false;
 	int i;
 
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
-
-		sleep(1);
 
 		if (!canTerminate) {
 			duration.s = system->clock.s;
@@ -77,21 +75,24 @@ int main(int argc, char **argv) {
 		if (!started || !canTerminate) choice = rand() % 2 + 0;
 		else choice = rand() % 3 + 0;
 
-		if (choice == 0) {
-			started = true;
-			if (!requesting) {
-				for (i = 0; i < RESOURCES_MAX; i++)
-					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
-				requesting = true;
-			}
-		} else if (choice == 1) {
-			if (acquired) {
-				for (i = 0; i < RESOURCES_MAX; i++)
-					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
-				releasing = true;
-			}
-		} else if (choice == 2) {
-			terminating = true;
+		switch (choice) {
+			case 0:
+				started = true;
+				if (!requesting) {
+					for (i = 0; i < RESOURCES_MAX; i++)
+						system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
+					requesting = true;
+				}
+				break;
+			case 1:
+				if (acquired) {
+					for (i = 0; i < RESOURCES_MAX; i++)
+						system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
+					releasing = true;
+				}
+			case 2:
+				terminating = true;
+				break;
 		}
 
 		message.type = 1;
