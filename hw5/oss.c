@@ -169,6 +169,8 @@ void simulate() {
 			activeCount--;
 			exitCount++;
 		}
+
+		if (exitCount == PROCESSES_TOTAL) break;
 	}
 }
 
