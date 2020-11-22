@@ -61,55 +61,48 @@ int main(int argc, char **argv) {
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
-		if (!old)
-		{
+		if (!old) {
 			duration.s = system->clock.s;
 			duration.ns = system->clock.ns;
-			if (abs(duration.ns - arrival.ns) >= 1000000000)
-			{
-				old = true;
-			}
-			else if (abs(duration.s - arrival.s) >= 1)
-			{
-				old = true;
-			}
+			if (abs(duration.ns - arrival.ns) >= 1000 * 1000000) old = true;
+			else if (abs(duration.s - arrival.s) >= 1) old = true;
 		}
 
-		bool is_terminate = false;
-		bool is_releasing = false;
+		bool terminating = false;
+		bool releasing = false;
 		int choice;
+
 		if (!started || !old) choice = rand() % 2 + 0;
 		else choice = rand() % 3 + 0;
 
-		if (choice == 0) {
-			started = true;
-
-			if (!requesting) {
-				for (i = 0; i < RESOURCES_MAX; i++) {
-					system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
+		switch (choice) {
+			case 0:
+				started = true;
+				if (!requesting) {
+					for (i = 0; i < RESOURCES_MAX; i++)
+						system->ptable[spid].request[i] = rand() % (system->ptable[spid].maximum[i] - system->ptable[spid].allocation[i] + 1);
+					requesting = true;
 				}
-				requesting = true;
-			}
-		}
-		else if (choice == 1) {
-			if (acquired) {
-				for (i = 0; i < RESOURCES_MAX; i++) {
-					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
+				break;
+			case 1:
+				if (acquired) {
+					for (i = 0; i < RESOURCES_MAX; i++)
+						system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
+					terminating = true;
 				}
-				is_releasing = true;
-			}
-		}
-		else if (choice == 2) {
-			is_terminate = true;
+				break;
+			case 2:
+				terminating = true;
+				break;
 		}
 
 		message.type = 1;
-		message.terminate = is_terminate ? 0 : 1;
+		message.terminate = terminating ? 0 : 1;
 		message.request = requesting ? true : false;
-		message.release = is_releasing ? true : false;
+		message.release = terminating ? true : false;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
-		if (is_terminate) break;
+		if (terminating) break;
 		else {
 			if (requesting) {
 				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
@@ -125,7 +118,7 @@ int main(int argc, char **argv) {
 				}
 			}
 
-			if (is_releasing) {
+			if (releasing) {
 				for (i = 0; i < RESOURCES_MAX; i++) {
 					system->ptable[spid].allocation[i] -= system->ptable[spid].release[i];
 					system->ptable[spid].release[i] = 0;
