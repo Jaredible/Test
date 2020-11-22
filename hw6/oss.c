@@ -1,18 +1,5 @@
-/* ====================================================================================================
-# Author: Duc Ngo
-# Course: CS4760-001 - Operating System
-# File Name: oss.c
-# Date: 11/15/19
-# Purpose:
-	Design and implement a memory management module for our Operating System Simulator oss.
-	Implement and compare lru and fifo page replacement algorithms, both with dirty-bit optimization.
-	When a page-fault occurs, it will be necessary to swap in that page. If there are no empty frames, 
-	your algorithm will select the victim frame based on the algorithm for that module (fifo or lru).
 
-	Each frame should also have an additional dirty bit, which is set on writing to the frame. 
-	This bit is necessary to consider dirty bit optimization when determining how much time these 
-	operations take. The dirty bit will be implemented as a part of the page table.
-==================================================================================================== */
+
 #include <stdlib.h>     //exit()
 #include <stdio.h>      //printf()
 #include <stdbool.h>    //bool variable
@@ -38,7 +25,7 @@
 #include "queue.h"
 #include "list.h"
 
-
+static char *programName;
 
 /* Static GLOBAL variable (misc) */
 static FILE *fpw = NULL;
@@ -113,15 +100,10 @@ void initPCB(ProcessControlBlock *pcb, int index, pid_t pid);
 /* ====================================================================================================
 MAIN
 ==================================================================================================== */
-int main(int argc, char *argv[]) 
-{
-	/* =====Initialize resources===== */
+int main(int argc, char *argv[]) {
 	exe_name = argv[0];
 	srand(getpid());
 
-	
-	//--------------------------------------------------
-	/* =====Options===== */
 	int opt;
 	while((opt = getopt(argc, argv, "hl:dta:")) != -1)
 	{
@@ -144,12 +126,6 @@ int main(int argc, char *argv[])
 				strncpy(log_file, optarg, 255);
 				fprintf(stderr, "Your new log file is: %s\n", log_file);
 				break;
-
-			case 'd':
-				//(DO NOT use debug mode when memory size is above 256000k, it will cause segmentation fault due to limitation)
-				isDebugMode = true; 
-				break;
-
 			case 't':
 				isDisplayTerminal = true;
 				break;
@@ -1022,3 +998,11 @@ void initPCB(ProcessControlBlock *pcb, int index, pid_t pid)
 	}
 }
 
+
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+}

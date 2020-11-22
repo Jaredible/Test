@@ -49,9 +49,49 @@ void semaRelease(int sem_index);
 void getSharedMemory();
 
 
+#define SIZE 32
 
-int main(int argc, char *argv[]) 
-{
+void test() {
+    srand(time(NULL) ^ getpid());
+    
+    double weights[SIZE];
+    
+    int i, j;
+    
+    for (i = 0; i < SIZE; i++) {
+        weights[i] = 0;
+    }
+    
+    double sum;
+    for (i = 0; i < SIZE; i++) {
+        sum = 0;
+        for (j = 0; j <= i; j++) {
+            sum += 1 / (double) (j + 1);
+        }
+        weights[i] = sum;
+    }
+    
+    for (i = 0; i < SIZE; i++) {
+        printf("%f\n", weights[i]);
+    }
+    
+    int r = rand() % ((int) weights[SIZE - 1] + 1);
+    
+    int page;
+    for (i = 0; i < SIZE; i++) {
+        if (weights[i] > r) {
+            page = i;
+            break;
+        }
+    }
+    
+    int offset = (page << 10) + (rand() % 1024);
+    
+    printf("page: %d, offset: %d\n", page, offset);
+}
+
+
+int main(int argc, char *argv[]) {
 	/* =====Signal Handling====== */
 	processInterrupt();
 
@@ -81,8 +121,46 @@ int main(int argc, char *argv[])
 		if(memory_reference <= 1000)
 		{
 			//- Requesting Memory -//
-			address = rand() % 32768 + 0;
-			request_page = address >> 10;
+			if (false) {
+				address = rand() % 32768 + 0;
+				request_page = address >> 10;
+			} else {
+				double weights[SIZE];
+    
+				int i, j;
+				
+				for (i = 0; i < SIZE; i++) {
+					weights[i] = 0;
+				}
+				
+				double sum;
+				for (i = 0; i < SIZE; i++) {
+					sum = 0;
+					for (j = 0; j <= i; j++) {
+						sum += 1 / (double) (j + 1);
+					}
+					weights[i] = sum;
+				}
+				
+				for (i = 0; i < SIZE; i++) {
+					printf("%f\n", weights[i]);
+				}
+				
+				int r = rand() % ((int) weights[SIZE - 1] + 1);
+				
+				int page;
+				for (i = 0; i < SIZE; i++) {
+					if (weights[i] > r) {
+						page = i;
+						break;
+					}
+				}
+				
+				int offset = (page << 10) + (rand() % 1024);
+
+				address = offset;
+				request_page = page;
+			}
 			memory_reference++;
 		}
 		else
