@@ -39,12 +39,14 @@ void initIPC();
 void crash(char*);
 void init(int, char**);
 
+static int spid;
+
 int main(int argc, char **argv) {
 	init(argc, argv);
 
 	registerSignalHandlers();
 
-	int spid = atoi(argv[1]);
+	spid = atoi(argv[1]);
 
 	srand(time(NULL) ^ getpid());
 
