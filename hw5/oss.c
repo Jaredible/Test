@@ -138,7 +138,8 @@ int main(int argc, char **argv) {
 
 	simulate();
 
-	finalize();
+	timer(0);
+	signalHandler(0);
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -256,15 +257,17 @@ void registerSignalHandlers() {
 
 void signalHandler(int sig) {
 	finalize();
-	exit(EXIT_SUCCESS);
-}
 
-void finalize() {
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
 	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 
 	freeIPC();
 
+	exit(EXIT_SUCCESS);
+}
+
+void finalize() {
+	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
 	kill(0, SIGUSR1);
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
