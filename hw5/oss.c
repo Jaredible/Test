@@ -469,7 +469,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			log("\tAsked for more than initial max request\n");
 
 			if (verbose) {
-				printVector("Available", "   ", avail);
+				printVector("Available", "", avail);
 				printMatrix("Need", queue, need, count);
 			}
 
@@ -484,7 +484,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			log("\tNot enough available resources\n");
 
 			if (verbose) {
-				printVector("Available", "   ", avail);
+				printVector("Available", "", avail);
 				printMatrix("Need", queue, need, count);
 			}
 
@@ -518,7 +518,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	}
 
 	if (verbose) {
-		printVector("Available", "   ", avail);
+		printVector("Available", "", avail);
 		printMatrix("Need", queue, need, count);
 	}
 
