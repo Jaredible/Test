@@ -254,11 +254,17 @@ int main(int argc, char **argv) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
+	registerSignalHandlers();
+
 	initIPC();
 
 	FILE *fp;
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
 	if (fclose(fp) == EOF) crash("fclose");
+
+	initSystem();
+	initDescriptor();
+	printDescriptor();
 
 	memset(pids, 0, sizeof(pids));
 	queue = queue_create();
@@ -266,12 +272,6 @@ int main(int argc, char **argv) {
 	system->clock.ns = 0;
 	nextSpawn.s = 0;
 	nextSpawn.ns = 0;
-
-	initSystem();
-	initDescriptor();
-	printDescriptor();
-
-	registerSignalHandlers();
 
 	simulate();
 
