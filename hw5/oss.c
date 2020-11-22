@@ -397,22 +397,17 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 	next = queue->front;
 
 	int i, j;
-	log("===%s Matrix===\n", m_name);
+	log("%s Matrix\n", m_name);
 
-	for (i = 0; i < count; i++)
-	{
-		log("P%2d :  <", next->index);
-		for (j = 0; j < RESOURCES_MAX; j++)
-		{
+	for (i = 0; i < count; i++) {
+		log("P%2d :", next->index);
+
+		for (j = 0; j < RESOURCES_MAX; j++) {
 			log("%2d", matrix[i][j]);
-
-			if (j < RESOURCES_MAX - 1)
-			{
-				log(" | ");
-			}
+			if (j < RESOURCES_MAX - 1) log(" | ");
 		}
-		log(">\n");
 
+		log("\n");
 		next = (next->next != NULL) ? next->next : NULL;
 	}
 }
@@ -474,7 +469,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			log("\tAsked for more than initial max request\n");
 
 			if (verbose) {
-				printVector("Available", "A  ", avail);
+				printVector("Available", "   ", avail);
 				printMatrix("Need", queue, need, count);
 			}
 
@@ -489,7 +484,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			log("\tNot enough available resources\n");
 
 			if (verbose) {
-				printVector("Available", "A  ", avail);
+				printVector("Available", "   ", avail);
 				printMatrix("Need", queue, need, count);
 			}
 
@@ -523,7 +518,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	}
 
 	if (verbose) {
-		printVector("Available", "A  ", avail);
+		printVector("Available", "   ", avail);
 		printMatrix("Need", queue, need, count);
 	}
 
