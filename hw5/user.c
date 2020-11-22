@@ -43,6 +43,7 @@ int main(int argc, char **argv) {
 	registerSignalHandlers();
 
 	int spid = atoi(argv[1]);
+	printf("spid: %d", spid);
 
 	srand(time(NULL) ^ getpid());
 
