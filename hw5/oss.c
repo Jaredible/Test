@@ -121,7 +121,7 @@ void handleProcesses() {
 
 		advanceClock();
 
-		if (message.terminate == TERMINATE) {
+		if (message.terminate) {
 			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			queue_remove(queue, index);

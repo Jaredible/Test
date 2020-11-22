@@ -65,23 +65,17 @@ int main(int argc, char **argv) {
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
-		if (!is_ran_duration)
-		{
+		if (!is_ran_duration) {
 			userEndClock.s = system->clock.s;
 			userEndClock.ns = system->clock.ns;
-			if (abs(userEndClock.ns - userStartClock.ns) >= 1000000000)
-			{
-				is_ran_duration = true;
-			}
-			else if (abs(userEndClock.s - userStartClock.s) >= 1)
-			{
-				is_ran_duration = true;
-			}
+			if (abs(userEndClock.ns - userStartClock.ns) >= 1000 * 1000000) is_ran_duration = true;
+			else if (abs(userEndClock.s - userStartClock.s) >= 1) is_ran_duration = true;
 		}
 
 		bool is_terminate = false;
 		bool is_releasing = false;
 		int choice;
+
 		if (!is_resource_once || !is_ran_duration) choice = rand() % 2 + 0;
 		else choice = rand() % 3 + 0;
 
@@ -94,23 +88,20 @@ int main(int argc, char **argv) {
 				}
 				is_requesting = true;
 			}
-		}
-		else if (choice == 1) {
+		} else if (choice == 1) {
 			if (is_acquire) {
-				for (i = 0; i < RESOURCES_MAX; i++) {
+				for (i = 0; i < RESOURCES_MAX; i++)
 					system->ptable[spid].release[i] = system->ptable[spid].allocation[i];
-				}
 				is_releasing = true;
 			}
-		}
-		else if (choice == 2) {
+		} else if (choice == 2) {
 			is_terminate = true;
 		}
 
 		message.type = 1;
-		message.terminate = is_terminate ? 0 : 1;
-		message.request = is_requesting ? true : false;
-		message.release = is_releasing ? true : false;
+		message.terminate = is_terminate;
+		message.request = is_requesting;
+		message.release = is_releasing;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
 		if (is_terminate) break;
