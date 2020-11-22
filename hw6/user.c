@@ -142,10 +142,6 @@ int main(int argc, char *argv[]) {
 					weights[i] = sum;
 				}
 				
-				for (i = 0; i < SIZE; i++) {
-					printf("%f\n", weights[i]);
-				}
-				
 				int r = rand() % ((int) weights[SIZE - 1] + 1);
 				
 				int page;
