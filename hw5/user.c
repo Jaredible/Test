@@ -61,6 +61,8 @@ int main(int argc, char **argv) {
 	while (true) {
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
+		sleep(1);
+
 		if (!canTerminate) {
 			duration.s = system->clock.s;
 			duration.ns = system->clock.ns;
