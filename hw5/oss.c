@@ -299,13 +299,14 @@ void registerSignalHandlers() {
 
 void signalHandler(int sig) {
 	finalize();
-	freeIPC();
 	exit(EXIT_SUCCESS);
 }
 
 void finalize() {
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
 	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
+
+	freeIPC();
 
 	kill(0, SIGUSR1);
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
