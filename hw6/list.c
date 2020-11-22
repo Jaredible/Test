@@ -11,7 +11,7 @@
 #include <string.h>     //str function
 #include <unistd.h>     //standard symbolic constants and types
 #include "helper.h"
-#include "linklist.h"
+#include "list.h"
 
 
 /* ====================================================================================================
