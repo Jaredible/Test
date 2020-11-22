@@ -393,15 +393,15 @@ void printVector(char *v_name, char *l_name, int vector[RESOURCES_MAX]) {
 }
 
 void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int count) {
-	QueueNode next;
-	next.next = queue->front;
+	QueueNode *next;
+	next = queue->front;
 
 	int i, j;
 	log("===%s Matrix===\n", m_name);
 
 	for (i = 0; i < count; i++)
 	{
-		log("P%2d :  <", next.next->index);
+		log("P%2d :  <", next->index);
 		for (j = 0; j < RESOURCES_MAX; j++)
 		{
 			log("%2d", matrix[i][j]);
@@ -413,7 +413,7 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 		}
 		log(">\n");
 
-		next.next = (next.next->next != NULL) ? next.next->next : NULL;
+		next = (next->next != NULL) ? next->next : NULL;
 	}
 }
 
