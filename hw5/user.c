@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 		if (!canTerminate) {
 			duration.s = system->clock.s;
 			duration.ns = system->clock.ns;
-			if (abs(duration.ns - arrival.ns) >= 1000 * 1000000) canTerminate = true;
+			if (abs(duration.ns - arrival.ns) >= 10 * 1000 * 1000000) canTerminate = true;
 			else if (abs(duration.s - arrival.s) >= 1) canTerminate = true;
 		}
 
