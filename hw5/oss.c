@@ -473,7 +473,7 @@ bool safe(PCB *pcb, Queue *queue, int index) {
 		}
 	}
 
-	int index = 0;
+	i = 0;
 	while (index < count) {
 		bool found = false;
 		for (p = 0; p < count; p++) {
@@ -485,7 +485,7 @@ bool safe(PCB *pcb, Queue *queue, int index) {
 					for (k = 0; k < RESOURCES_MAX; k++)
 						work[k] += alloc[p][k];
 
-					sequence[index++] = p;
+					sequence[i++] = p;
 					finish[p] = 1;
 					found = true;
 				}
