@@ -62,7 +62,7 @@ void initPCB(pid_t, int);
 
 void setMatrix(PCB*, Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
-void printVector(char*, char*, int[RESOURCES_MAX]);
+void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
 bool safe(PCB*, Queue*, int);
 
@@ -376,8 +376,8 @@ void calculateNeed(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int all
 	}
 }
 
-void printVector(char *v_name, char *l_name, int vector[RESOURCES_MAX]) {
-	log("%s Resource\n%3s  ", v_name, l_name);
+void printVector(char *title, int vector[RESOURCES_MAX]) {
+	log("%s Resource\n%3s  ", title);
 
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++) {
@@ -445,9 +445,9 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	if (verbose) {
 		printMatrix("Maximum", queue, maxm, count);
 		printMatrix("Allocation", queue, allot, count);
-		char str[BUFFER_LENGTH];
-		sprintf(str, "P%2d", c_index);
-		printVector("Request", str, req);
+		char buf[BUFFER_LENGTH];
+		sprintf(buf, "P%2d Request", c_index);
+		printVector(buf, req);
 	}
 
 	bool finish[count];
@@ -463,7 +463,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			log("\tAsked for more than initial max request\n");
 
 			if (verbose) {
-				printVector("Available", "", avail);
+				printVector("Available", avail);
 				printMatrix("Need", queue, need, count);
 			}
 
@@ -478,7 +478,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			log("\tNot enough available resources\n");
 
 			if (verbose) {
-				printVector("Available", "", avail);
+				printVector("Available", avail);
 				printMatrix("Need", queue, need, count);
 			}
 
@@ -512,7 +512,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	}
 
 	if (verbose) {
-		printVector("Available", "", avail);
+		printVector("Available", avail);
 		printMatrix("Need", queue, need, count);
 	}
 
