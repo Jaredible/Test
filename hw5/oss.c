@@ -29,8 +29,6 @@
 #define log _log
 
 void initSystem();
-void initDescriptor();
-void printDescriptor();
 void simulate();
 void handleProcesses();
 void trySpawnProcess();
@@ -39,6 +37,8 @@ void initPCB(pid_t, int);
 int findAvailablePID();
 void advanceClock();
 
+void initDescriptor();
+void printDescriptor();
 
 void setMatrix(PCB*, Queue*, int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
 void calculateNeedMatrix(int need[][RESOURCES_MAX], int maxm[][RESOURCES_MAX], int allot[][RESOURCES_MAX], int);
@@ -48,15 +48,16 @@ bool safe(PCB*, Queue*, int);
 
 void init(int, char**);
 void usage(int);
-void timer(int);
 void registerSignalHandlers();
 void signalHandler(int);
+void timer(int);
 void initIPC();
 void freeIPC();
 void finalize();
+void log(char*, ...);
 void error(char*, ...);
 void crash(char*);
-void log(char*, ...);
+
 void semLock(int);
 void semUnlock(int);
 
@@ -148,8 +149,11 @@ void initSystem() {
 void simulate() {
 	while (true) {
 		trySpawnProcess();
+
 		advanceClock();
+
 		handleProcesses();
+
 		advanceClock();
 
 		int status;
@@ -192,13 +196,19 @@ void handleProcesses() {
 				next = (next->next != NULL) ? next->next : NULL;
 
 			continue;
-		} else if (message.request) {
+		}
+
+		if (message.request) {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			message.type = system->ptable[index].pid;
 			message.safe = safe(system->ptable, queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
-		} else if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		}
+
+		advanceClock();
+
+		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		
 		count++;
 
