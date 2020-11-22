@@ -46,9 +46,10 @@ typedef struct {
 } Message;
 
 typedef struct {
+	int init[RESOURCES_MAX];
 	int resource[RESOURCES_MAX];
 	int shared;
-} ResourceDescriptor;
+} Data;
 
 typedef struct {
 	pid_t pid;
