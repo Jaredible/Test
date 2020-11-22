@@ -34,9 +34,8 @@ static int msqid = -1;
 static System *system = NULL;
 static Message message;
 
-void processInterrupt();
-void processHandler(int signum);
-void resumeHandler(int signum);
+void registerSignalHandlers();
+void signalHandler(int);
 
 void initIPC();
 void crash(char*);
@@ -45,7 +44,7 @@ void init(int, char**);
 int main(int argc, char **argv) {
 	init(argc, argv);
 
-	processInterrupt();
+	registerSignalHandlers();
 
 	int i;
 	spid = atoi(argv[1]);
@@ -143,28 +142,20 @@ int main(int argc, char **argv) {
 	return spid;
 }
 
-void processInterrupt()
-{
-	struct sigaction sa1;
-	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &processHandler;
-	sa1.sa_flags = SA_RESTART;
-	if (sigaction(SIGUSR1, &sa1, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+void registerSignalHandlers() {
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGUSR1, &sa, NULL) == -1) crash("sigaction");
 
-	struct sigaction sa2;
-	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &processHandler;
-	sa2.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa2, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
 }
-void processHandler(int signum)
-{
+
+void signalHandler(int sig) {
 	printf("%d: Terminated!\n", getpid());
 	exit(2);
 }
