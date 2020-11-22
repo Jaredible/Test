@@ -450,7 +450,7 @@ int main(int argc, char *argv[])
 			{
 				//- CRITICAL SECTION -//
 				total_access_time += incShmclock(0);
-				queue_pushqueue_push(trackingQueue, c_index);
+				queue_push(trackingQueue, c_index);
 
 				//- Allocate Frames Procedure -//
 				unsigned int address = master_message.address;
