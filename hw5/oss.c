@@ -404,9 +404,9 @@ void printMatrix(char *m_name, Queue *queue, int matrix[][RESOURCES_MAX], int co
 bool safe(PCB *pcbt, Queue *queue, int c_index) {
 	int i, p, j, k;
 
-	QueueNode next;
-	next.next = queue->front;
-	if (next.next == NULL) return true;
+	QueueNode *next;
+	next = queue->front;
+	if (next == NULL) return true;
 
 	int count = queue_size(queue);
 	int maxm[count][RESOURCES_MAX];
@@ -428,11 +428,11 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 			avail[j] = avail[j] - allot[i][j];
 
 	int idx = 0;
-	next.next = queue->front;
-	while (next.next != NULL) {
-		if (next.next->index == c_index) break;
+	next = queue->front;
+	while (next != NULL) {
+		if (next->index == c_index) break;
 		idx++;
-		next.next = (next.next->next != NULL) ? next.next->next : NULL;
+		next = (next->next != NULL) ? next->next : NULL;
 	}
 
 	if (verbose) {
@@ -512,10 +512,10 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 
 	int sequence[count];
 	int seq_index = 0;
-	next.next = queue->front;
-	while (next.next != NULL) {
-		sequence[seq_index++] = next.next->index;
-		next.next = (next.next->next != NULL) ? next.next->next : NULL;
+	next = queue->front;
+	while (next != NULL) {
+		sequence[seq_index++] = next->index;
+		next = (next->next != NULL) ? next->next : NULL;
 	}
 
 	log("System is in SAFE state. Safe sequence is: ");
