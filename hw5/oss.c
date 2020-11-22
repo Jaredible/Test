@@ -180,7 +180,7 @@ void handleProcesses() {
 
 		advanceClock();
 
-		if (message.terminate == TERMINATE) {
+		if (message.terminate == 0) {
 			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			queue_remove(queue, index);
@@ -422,10 +422,7 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 
 	QueueNode next;
 	next.next = queue->front;
-	if (next.next == NULL)
-	{
-		return true;
-	}
+	if (next.next == NULL) return true;
 
 	int count = queue_size(queue);
 	int maxm[count][RESOURCES_MAX];
@@ -442,7 +439,6 @@ bool safe(PCB *pcbt, Queue *queue, int c_index) {
 		req[i] = pcbt[c_index].request[i];
 	}
 
-	//Update available vector
 	for (i = 0; i < count; i++)
 		for (j = 0; j < RESOURCES_MAX; j++)
 			avail[j] = avail[j] - allot[i][j];
