@@ -71,6 +71,17 @@ void semLock(const int);
 void semUnlock(const int);
 int advanceClock(int);
 
+void init(int, char**);
+void usage(int);
+void registerSignalHandlers();
+void signalHandler(int);
+void timer(int);
+void initIPC();
+void freeIPC();
+void finalize();
+void error(char*, ...);
+void crash(char*);
+
 void initPCBT(PCB*);
 void initPCB(PCB*, int, pid_t);
 
