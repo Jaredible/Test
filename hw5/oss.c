@@ -197,8 +197,6 @@ void handleProcesses() {
 	
 	/* While we have user processes to simulate */
 	while (next != NULL) {
-		advanceClock();
-
 		/* Send a message to a user process saying it's your turn to "run" */
 		int index = next->index;
 		message.type = system->ptable[index].pid;
@@ -208,8 +206,6 @@ void handleProcesses() {
 
 		/* Receive a response of what they're doing */
 		msgrcv(msqid, &message, sizeof(Message), 1, 0);
-
-		advanceClock();
 
 		/* Check if user process has terminated */
 		if (message.terminate == 0) {
@@ -234,8 +230,6 @@ void handleProcesses() {
 			message.safe = safe(queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
 		}
-
-		advanceClock();
 
 		/* Check if user process has released resources */
 		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
@@ -319,7 +313,7 @@ int findAvailablePID() {
 void advanceClock() {
 	semLock(0);
 
-	/* Increment system clock by random amount */
+	/* Increment system clock by random nanoseconds */
 	int r = rand() % (1 * 1000000) + 1;
 	nextSpawn.ns += r;
 	system->clock.ns += r;
