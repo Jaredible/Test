@@ -163,19 +163,10 @@ int main(int argc, char *argv[]) {
 				count_process++;
 			}
 
-			if (is_bitmap_open == true)
-			{
+			if (is_bitmap_open == true) {
 				pid = fork();
-
-				if (pid == -1)
-				{
-					fprintf(stderr, "%s (Master) ERROR: %s\n", programName, strerror(errno));
-					finalize();
-					cleanUp();
-					exit(0);
-				}
-
-				if (pid == 0) {
+				if (pid == -1) crash("fork");
+				else if (pid == 0) {
 					char arg0[BUFFER_LENGTH];
 					char arg1[BUFFER_LENGTH];
 					sprintf(arg0, "%d", last_index);
