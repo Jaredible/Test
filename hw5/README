@@ -1,0 +1,100 @@
+S4760 Project 5: Resource Management
+
+**OSS (operating system simulator)** is a program that simulates an operating system.
+
+OSS manages resources, and user processes request resources.
+OSS will then check if resources are available.
+If a resource is available, then OSS will run the Banker's Algorithm to check if there is a safe sequence after the resource is granted.
+If there is a safe sequence, then OSS will grant the resource.
+If there is *no* safe sequence, then OSS will put the requesting process in a blocked queue.
+OSS will check the blocked queue every time a resource is released to see if any blocked processes can be unblocked.
+
+### Safe Sequences
+A *safe sequence* is an ordering of processes.
+For example, <P2, P4, P0, P1, P3> could be a safe sequence, and that would mean that P2 could finish executing and then release its resources.
+Then, P4 would finish executing and release its resources, and so on until all the processes have finished executing and all the resources have been released.
+Thus, a safe sequence guarantees that there cannot be a deadlock.
+
+### OSS and User Process Communication
+User processes communicate to OSS that they request or release a resource by sending it a message through a *message queue*.
+After sending a message to request/release a resource, the user process will use a blocking receive to receive a response message from OSS.
+Thus, the user process will not continue executing until a response is received.
+
+### Program Hanging
+The program has a very low probability of stalling for a reason that I have not been able to figure out.
+If that happens, then press Ctrl+C to exit the program and try rerunning it.
+
+The program will generate a log file called `oss.log`. Use the -v (verbose) flag to have more information printed to the console and log file.
+
+To build this program:
+```
+make
+```
+
+To run this program:
+```
+./oss
+```
+
+To run this program in verbose mode:
+```
+./oss -v
+```
+
+To cleanup:
+```
+make clean
+```
+
+#### Issues
+- Verbose logging causes system to run slowly.
+
+#### Changelog
+
+commit a5476fa931cc5b4ae1676e87d108891eac0bb318
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Tue Nov 22 10:28:53 2020 -0600
+
+    Updated README
+
+commit 52d0f295b96823ea0ad0edd732eef77b0bb26151
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Tue Nov 17 02:04:12 2020 -0600
+
+    Fixed shared resources
+
+commit bb56549626d1b0fb2573f9638731d6ce60ea5c26
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Mon Nov 16 15:23:12 2020 -0600
+
+    Implemented shared resources
+
+commit ab69ec97c328b7afa43bfecfa61bcf073e817396
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Sun Nov 15 18:33:23 2020 -0600
+
+    Fixed resource-requesting bugs
+
+commit fa54704a918c43a94abdfd4eb6d725c3b49a1c24
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Sat Nov 14 15:40:15 2020 -0600
+
+    Implemented resource-requests
+
+commit 7e959069051ad3302a20d4cc4019f1888861f12d
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Fri Nov 13 13:52:41 2020 -0600
+
+    Implemented process-requesting
+
+commit c22bdf8a15e5ecb4138ade7cae7eb00dc6df11d1
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Thu Nov 12 09:58:57 2020 -0600
+
+    Updated README
+
+commit e9ddc8b71affc00f2e77ae500709af30cf125f49
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Wed Nov 4 14:14:53 2020 -0600
+
+    Initial setup

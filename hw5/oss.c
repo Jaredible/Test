@@ -60,11 +60,11 @@ void printDescriptor();
 void initSystem();
 void initPCB(pid_t, int);
 
-void setMatrix(PCB*, Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
+void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
-bool safe(PCB*, Queue*, int);
+bool safe(Queue*, int);
 
 void init(int, char**);
 void usage(int);
@@ -339,7 +339,7 @@ void initPCB(pid_t pid, int spid) {
 	}
 }
 
-void setMatrix(PCB *pcb, Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
+void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
 	QueueNode next;
 	next.next = queue->front;
 
@@ -347,8 +347,8 @@ void setMatrix(PCB *pcb, Queue *queue, int max[][RESOURCES_MAX], int alloc[][RES
 	int index = next.next->index;
 	for (i = 0; i < count; i++) {
 		for (j = 0; j < RESOURCES_MAX; j++) {
-			max[i][j] = pcb[index].maximum[j];
-			alloc[i][j] = pcb[index].allocation[j];
+			max[i][j] = system->ptable[index].maximum[j];
+			alloc[i][j] = system->ptable[index].allocation[j];
 		}
 
 		if (next.next->next != NULL) {
@@ -395,7 +395,7 @@ void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int cou
 	}
 }
 
-bool safe(PCB *pcb, Queue *queue, int index) {
+bool safe(Queue *queue, int index) {
 	int i, p, j, k;
 
 	QueueNode *next;
@@ -409,12 +409,12 @@ bool safe(PCB *pcb, Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	setMatrix(pcb, queue, max, alloc, count);
+	setMatrix(queue, max, alloc, count);
 	calculateNeed(need, max, alloc, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
-		req[i] = pcb[index].request[i];
+		req[i] = system->ptable[index].request[i];
 	}
 
 	for (i = 0; i < count; i++)
