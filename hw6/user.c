@@ -27,7 +27,6 @@ static char *programName;
 
 static char *exe_name;
 static int exe_index;
-static key_t key;
 
 static int shmid = -1;
 static int msqid = -1;
