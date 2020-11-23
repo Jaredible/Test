@@ -1,3 +1,8 @@
+/*
+ * shared.h November 24, 2020
+ * Jared Diehl (jmddnb@umsystem.edu)
+ */
+
 #ifndef SHARED_H
 #define SHARED_H
 

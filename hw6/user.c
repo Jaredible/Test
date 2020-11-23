@@ -1,26 +1,25 @@
 /*
- * user.c November 25, 2020
+ * user.c November 24, 2020
  * Jared Diehl (jmddnb@umsystem.edu)
  */
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <errno.h>
+#include <math.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <stdarg.h>
-#include <errno.h>
-#include <signal.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/shm.h>
-#include <sys/sem.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
-#include <math.h>
+#include <unistd.h>
 
 #include "shared.h"
 
