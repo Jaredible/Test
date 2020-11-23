@@ -37,14 +37,11 @@ static key_t key;
 static Queue *queue;
 static Time forkclock;
 
-static int mqueueid = -1;
-static Message master_message;
-static int shmclock_shmid = -1;
-static Time *shmclock_shmptr = NULL;
+static int shmid = -1;
+static int msqid = -1;
 static int semid = -1;
-static struct sembuf sema_operation;
-static int pcbt_shmid = -1;
-static PCB *pcbt_shmptr = NULL;
+static System *system = NULL;
+static Message message;
 
 static int fork_number = 0;
 static pid_t pid = -1;
@@ -713,5 +710,26 @@ int findAvailablePID() {
 	return -1;
 }
 
+void initIPC() {
+	key_t key;
+
+	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((shmid = shmget(key, sizeof(System), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
+	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
+
+	if ((key = ftok(".", 1)) == -1) crash("ftok");
+	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
+
+	if ((key = ftok(".", 2)) == -1) crash("ftok");
+	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
+	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
+}
+
 void freeIPC() {
+	if (system != NULL && shmdt(system) == -1) crash("shmdt");
+	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
+
+	if (msqid > 0 && msgctl(msqid, IPC_RMID, NULL) == -1) crash("msgctl");
+
+	if (semid > 0 && semctl(semid, 0, IPC_RMID) == -1) crash("semctl");
 }

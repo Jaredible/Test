@@ -10,8 +10,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#define system _system
-
 #define BUFFER_LENGTH 1024
 
 #define KEY_PATHNAME "."

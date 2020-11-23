@@ -18,7 +18,7 @@ typedef unsigned int uint;
 #define KEY_ID_MESSAGE_QUEUE 2
 #define PERMS (S_IRUSR | S_IWUSR)
 
-#define PATH_LOG "./output.log"
+#define PATH_LOG "output.log"
 #define TIMEOUT 5
 #define PROCESSES_MAX 18
 #define PROCESSES_TOTAL 100
@@ -59,5 +59,10 @@ typedef struct {
 	pid_t pid;
 	PTE ptable[MAX_PAGE];
 } PCB;
+
+typedef struct {
+	Time clock;
+	PCB ptable[PROCESSES_MAX];
+} System;
 
 #endif
