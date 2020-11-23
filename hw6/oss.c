@@ -517,7 +517,7 @@ void masterHandler(int signum) {
 	log("- Number of page faults per memory access: %f pagefault/access\n", pg_f_p_mem);
 	log("- Average memory access speed: %f ms/n\n", avg_m);
 	log("- Total memory access time: %f ms\n", (double)total_access_time / 1000000.0);
-	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", log_file);
+	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", "output.log");
 
 	cleanUp();
 
