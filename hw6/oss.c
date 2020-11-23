@@ -31,7 +31,6 @@
 static char *programName;
 
 static char *exe_name;
-static char log_file[256] = "output.log";
 static int scheme_choice = 0;
 static key_t key;
 static Queue *queue;
@@ -108,12 +107,6 @@ int main(int argc, char *argv[])
 
 	if (optind < argc) {
 		fprintf(stderr, "%s ERROR: extra arguments was given! Please use \"-h\" option for more info.\n", exe_name);
-		exit(EXIT_FAILURE);
-	}
-
-	fpw = fopen(log_file, "w");
-	if (fpw == NULL) {
-		fprintf(stderr, "%s ERROR: unable to write the output file.\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
