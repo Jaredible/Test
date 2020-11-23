@@ -99,6 +99,7 @@ int main(int argc, char *argv[])
 	/* =====Initialize resources===== */
 	exe_name = argv[0];
 	exe_index = atoi(argv[1]);
+	int m = atoi(argv[2]);
 	srand(getpid());
 
 	//--------------------------------------------------
