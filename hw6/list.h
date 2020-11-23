@@ -6,11 +6,11 @@
 #ifndef LIST_H
 #define LIST_H
 
-typedef struct Node {
+typedef struct ListNode {
 	int index;
 	int page;
 	int frame;
-	struct Node *next;
+	struct ListNode *next;
 } ListNode;
 
 typedef struct {
