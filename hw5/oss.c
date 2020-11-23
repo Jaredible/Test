@@ -582,12 +582,12 @@ void log(char *fmt, ...) {
 
 void semLock(const int index) {
 	struct sembuf sop = { index, -1, 0 };
-	semop(semid, &sop, 1);
+	if (semop(semid, &sop, 1) == -1) crash("semop");
 }
 
 void semUnlock(const int index) {
 	struct sembuf sop = { index, 1, 0 };
-	semop(semid, &sop, 1);
+	if (semop(semid, &sop, 1) == -1) crash("semop");
 }
 
 void printDescriptor() {

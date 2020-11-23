@@ -35,7 +35,7 @@ static char *programName;
 static int scheme = 0;
 static key_t key;
 static Queue *queue;
-static Time forkclock;
+static Time nextSpawn;
 
 static int shmid = -1;
 static int msqid = -1;
@@ -79,7 +79,7 @@ void finalize();
 void error(char*, ...);
 void crash(char*);
 
-void initPCBT(PCB*);
+void initSystem();
 void initPCB(PCB*, int, pid_t);
 
 int main(int argc, char *argv[]) {
@@ -118,67 +118,12 @@ int main(int argc, char *argv[]) {
 
 	memset(bitmap, '\0', sizeof(bitmap));
 
-	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, IPC_CREAT | 0600);
-	if (mqueueid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
+	system->clock.s = 0;
+	system->clock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
 
-	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
-	if (shmclock_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if (shmclock_shmptr == (void *)(-1))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	shmclock_shmptr->s = 0;
-	shmclock_shmptr->ns = 0;
-	forkclock.s = 0;
-	forkclock.ns = 0;
-
-	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
-	if (semid == -1)
-	{
-		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	semctl(semid, 0, SETVAL, 1);
-
-	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
-	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
-	if (pcbt_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if (pcbt_shmptr == (void *)(-1))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", programName);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	initPCBT(pcbt_shmptr);
+	initSystem();
 
 	queue = queue_create();
 	reference_string = list_create();
@@ -196,9 +141,9 @@ int main(int argc, char *argv[]) {
 	while (1)
 	{
 		int spawn_nano = rand() % 500000000 + 1000000;
-		if (forkclock.ns >= spawn_nano)
+		if (nextSpawn.ns >= spawn_nano)
 		{
-			forkclock.ns = 0;
+			nextSpawn.ns = 0;
 
 			bool is_bitmap_open = false;
 			int count_process = 0;
@@ -253,12 +198,12 @@ int main(int argc, char *argv[]) {
 
 					bitmap[last_index / 8] |= (1 << (last_index % 8));
 
-					initPCB(&pcbt_shmptr[last_index], last_index, pid);
+					initPCB(&system->ptable[last_index], last_index, pid);
 
 					queue_push(queue, last_index);
 
 					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-							   pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
+							   system->ptable[last_index].spid, system->ptable[last_index].pid, system->clock.s, system->clock.ns);
 				}
 			}
 		}
@@ -274,26 +219,26 @@ int main(int argc, char *argv[]) {
 			advanceClock(0);
 
 			int index = next->index;
-			master_message.type = pcbt_shmptr[index].pid;
-			master_message.spid = index;
-			master_message.pid = pcbt_shmptr[index].pid;
-			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
+			message.type = system->ptable[index].pid;
+			message.spid = index;
+			message.pid = system->ptable[index].pid;
+			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 
-			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
+			msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
 
 			advanceClock(0);
 
-			if (master_message.flag == 0)
+			if (message.flag == 0)
 			{
 				log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						   programName, master_message.spid, master_message.pid, shmclock_shmptr->s, shmclock_shmptr->ns);
+						   programName, message.spid, message.pid, system->clock.s, system->clock.ns);
 
 				int i;
 				for (i = 0; i < MAX_PAGE; i++)
 				{
-					if (pcbt_shmptr[index].ptable[i].frame != -1)
+					if (system->ptable[index].ptable[i].frame != -1)
 					{
-						int frame = pcbt_shmptr[index].ptable[i].frame;
+						int frame = system->ptable[index].ptable[i].frame;
 						list_remove(reference_string, index, i, frame);
 						main_memory[frame / 8] &= ~(1 << (frame % 8));
 					}
@@ -304,25 +249,25 @@ int main(int argc, char *argv[]) {
 				total_access_time += advanceClock(0);
 				queue_push(temp, index);
 
-				unsigned int address = master_message.address;
-				unsigned int request_page = master_message.page;
-				if (pcbt_shmptr[index].ptable[request_page].protection == 0)
+				unsigned int address = message.address;
+				unsigned int request_page = message.page;
+				if (system->ptable[index].ptable[request_page].protection == 0)
 				{
 					log("%s: process (%d) [%d] requesting read of address (%d) [%d] at time %d:%d\n",
-							   programName, master_message.spid, master_message.pid,
+							   programName, message.spid, message.pid,
 							   address, request_page,
-							   shmclock_shmptr->s, shmclock_shmptr->ns);
+							   system->clock.s, system->clock.ns);
 				}
 				else
 				{
 					log("%s: process (%d) [%d] requesting write of address (%d) [%d] at time %d:%d\n",
-							   programName, master_message.spid, master_message.pid,
+							   programName, message.spid, message.pid,
 							   address, request_page,
-							   shmclock_shmptr->s, shmclock_shmptr->ns);
+							   system->clock.s, system->clock.ns);
 				}
 				memoryaccess_number++;
 
-				if (pcbt_shmptr[index].ptable[request_page].valid == 0)
+				if (system->ptable[index].ptable[request_page].valid == 0)
 				{
 					log("%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
 							   programName, address, request_page);
@@ -351,36 +296,36 @@ int main(int argc, char *argv[]) {
 
 					if (is_memory_open == true)
 					{
-						pcbt_shmptr[index].ptable[request_page].frame = last_frame;
-						pcbt_shmptr[index].ptable[request_page].valid = 1;
+						system->ptable[index].ptable[request_page].frame = last_frame;
+						system->ptable[index].ptable[request_page].valid = 1;
 
 						main_memory[last_frame / 8] |= (1 << (last_frame % 8));
 
 						list_add(reference_string, index, request_page, last_frame);
 						log("%s: allocated frame [%d] to PID (%d) [%d]\n",
-								   programName, last_frame, master_message.spid, master_message.pid);
+								   programName, last_frame, message.spid, message.pid);
 
 						list_remove(lru_stack, index, request_page, last_frame);
 						list_add(lru_stack, index, request_page, last_frame);
 
-						if (pcbt_shmptr[index].ptable[request_page].protection == 0)
+						if (system->ptable[index].ptable[request_page].protection == 0)
 						{
 							log("%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
 									   programName, address, request_page,
-									   pcbt_shmptr[index].ptable[request_page].frame,
-									   master_message.spid, master_message.pid,
-									   shmclock_shmptr->s, shmclock_shmptr->ns);
+									   system->ptable[index].ptable[request_page].frame,
+									   message.spid, message.pid,
+									   system->clock.s, system->clock.ns);
 
-							pcbt_shmptr[index].ptable[request_page].dirty = 0;
+							system->ptable[index].ptable[request_page].dirty = 0;
 						}
 						else
 						{
 							log("%s: address (%d) [%d] in frame (%d), writing data to frame at time %d:%d\n",
 									   programName, address, request_page,
-									   pcbt_shmptr[index].ptable[request_page].frame,
-									   shmclock_shmptr->s, shmclock_shmptr->ns);
+									   system->ptable[index].ptable[request_page].frame,
+									   system->clock.s, system->clock.ns);
 
-							pcbt_shmptr[index].ptable[request_page].dirty = 1;
+							system->ptable[index].ptable[request_page].dirty = 1;
 						}
 					} else {
 						log("%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
@@ -391,59 +336,59 @@ int main(int argc, char *argv[]) {
 						unsigned int lru_address = lru_page << 10;
 						unsigned int lru_frame = lru_stack->head->frame;
 
-						if (pcbt_shmptr[lru_index].ptable[lru_page].dirty == 1) {
+						if (system->ptable[lru_index].ptable[lru_page].dirty == 1) {
 							log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
 									   programName, lru_address, lru_page);
 						}
 
-						pcbt_shmptr[lru_index].ptable[lru_page].frame = -1;
-						pcbt_shmptr[lru_index].ptable[lru_page].dirty = 0;
-						pcbt_shmptr[lru_index].ptable[lru_page].valid = 0;
+						system->ptable[lru_index].ptable[lru_page].frame = -1;
+						system->ptable[lru_index].ptable[lru_page].dirty = 0;
+						system->ptable[lru_index].ptable[lru_page].valid = 0;
 
-						pcbt_shmptr[index].ptable[request_page].frame = lru_frame;
-						pcbt_shmptr[index].ptable[request_page].dirty = 0;
-						pcbt_shmptr[index].ptable[request_page].valid = 1;
+						system->ptable[index].ptable[request_page].frame = lru_frame;
+						system->ptable[index].ptable[request_page].dirty = 0;
+						system->ptable[index].ptable[request_page].valid = 1;
 
 						list_remove(lru_stack, lru_index, lru_page, lru_frame);
 						list_remove(reference_string, lru_index, lru_page, lru_frame);
 						list_add(lru_stack, index, request_page, lru_frame);
 						list_add(reference_string, index, request_page, lru_frame);
 
-						if (pcbt_shmptr[index].ptable[request_page].protection == 1)
+						if (system->ptable[index].ptable[request_page].protection == 1)
 						{
 							log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
 							log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n",
-									   programName, master_message.spid, master_message.pid, address, request_page);
-							pcbt_shmptr[index].ptable[request_page].dirty = 1;
+									   programName, message.spid, message.pid, address, request_page);
+							system->ptable[index].ptable[request_page].dirty = 1;
 						}
 					}
 				} else {
-					int frame = pcbt_shmptr[index].ptable[request_page].frame;
+					int frame = system->ptable[index].ptable[request_page].frame;
 					list_remove(lru_stack, index, request_page, frame);
 					list_add(lru_stack, index, request_page, frame);
 
-					if (pcbt_shmptr[index].ptable[request_page].protection == 0) {
+					if (system->ptable[index].ptable[request_page].protection == 0) {
 						log("%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
 								   programName, address, request_page,
-								   pcbt_shmptr[index].ptable[request_page].frame,
-								   master_message.spid, master_message.pid,
-								   shmclock_shmptr->s, shmclock_shmptr->ns);
+								   system->ptable[index].ptable[request_page].frame,
+								   message.spid, message.pid,
+								   system->clock.s, system->clock.ns);
 					} else {
 						log("%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
 								   programName, address, request_page,
-								   pcbt_shmptr[index].ptable[request_page].frame,
-								   shmclock_shmptr->s, shmclock_shmptr->ns);
+								   system->ptable[index].ptable[request_page].frame,
+								   system->clock.s, system->clock.ns);
 					}
 				}
 			}
 
 			next = (next->next != NULL) ? next->next : NULL;
 
-			master_message.type = -1;
-			master_message.spid = -1;
-			master_message.pid = -1;
-			master_message.flag = -1;
-			master_message.page = -1;
+			message.type = -1;
+			message.spid = -1;
+			message.pid = -1;
+			message.flag = -1;
+			message.page = -1;
 		}
 
 		while (!queue_empty(queue))
@@ -514,14 +459,14 @@ void masterInterrupt(int seconds) {
 void masterHandler(int signum) {
 	finalize();
 
-	double mem_p_sec = (double)memoryaccess_number / (double)shmclock_shmptr->s;
+	double mem_p_sec = (double)memoryaccess_number / (double)system->clock.s;
 	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
 	double avg_m = (double)total_access_time / (double)memoryaccess_number;
 	avg_m /= 1000000.0;
 
 	log("- Master PID: %d\n", getpid());
 	log("- Number of forking during this execution: %d\n", fork_number);
-	log("- Final simulation time of this execution: %d.%d\n", shmclock_shmptr->s, shmclock_shmptr->ns);
+	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
 	log("- Number of memory accesses: %d\n", memoryaccess_number);
 	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
 	log("- Number of page faults: %d\n", pagefault_number);
@@ -581,23 +526,6 @@ void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *
 	}
 }
 
-void cleanUp()
-{
-	if (mqueueid > 0)
-	{
-		msgctl(mqueueid, IPC_RMID, NULL);
-	}
-
-	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", programName, "Master");
-
-	if (semid > 0)
-	{
-		semctl(semid, 0, IPC_RMID);
-	}
-
-	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", programName, "Master");
-}
-
 void semLock(const int sem_index)
 {
 	sema_operation.sem_num = sem_index;
@@ -632,19 +560,19 @@ int advanceClock(int increment)
 	return nano;
 }
 
-void initPCBT(PCB *pcbt)
+void initSystem()
 {
 	int i, j;
 	for (i = 0; i < PROCESSES_MAX; i++)
 	{
-		pcbt[i].spid = -1;
-		pcbt[i].pid = -1;
+		system->ptable[i].spid = -1;
+		system->ptable[i].pid = -1;
 		for (j = 0; j < MAX_PAGE; j++)
 		{
-			pcbt[i].ptable[j].frame = -1;
-			pcbt[i].ptable[j].protection = rand() % 2;
-			pcbt[i].ptable[j].dirty = 0;
-			pcbt[i].ptable[j].valid = 0;
+			system->ptable[i].ptable[j].frame = -1;
+			system->ptable[i].ptable[j].protection = rand() % 2;
+			system->ptable[i].ptable[j].dirty = 0;
+			system->ptable[i].ptable[j].valid = 0;
 		}
 	}
 }
