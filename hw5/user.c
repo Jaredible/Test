@@ -167,7 +167,7 @@ void signalHandler(int sig) {
 void initIPC() {
 	key_t key;
 
-	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, 0)) == -1) crash("ftok");
 	if ((shmid = shmget(key, sizeof(System), 0)) == -1) crash("shmget");
 	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
