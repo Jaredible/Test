@@ -34,9 +34,11 @@ static int msqid = -1;
 static System *system = NULL;
 static Message message;
 
+void init(int, char**);
 void registerSignalHandlers();
 void signalHandler(int);
 void initIPC();
+void crash(char*);
 
 #define SIZE 32
 
