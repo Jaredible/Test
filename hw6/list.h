@@ -1,36 +1,26 @@
-/* ====================================================================================================
-# Author: Duc Ngo
-# Course: CS4760-001 - Operating System
-# File Name: linklist.h
-# Date: 11/21/2019
-==================================================================================================== */
-#ifndef MY_LINKLIST_H
-#define MY_LINKLIST_H
+/*
+ * list.h November 25, 2020
+ * Jared Diehl (jmddnb@umsystem.edu)
+ */
 
+#ifndef LIST_H
+#define LIST_H
 
-typedef struct NodeL
-{ 
+typedef struct Node {
 	int index;
 	int page;
 	int frame;
-	struct NodeL *next;
-}LNode; 
+	struct Node *next;
+} ListNode;
 
+typedef struct {
+	ListNode *head;
+} List;
 
-typedef struct
-{ 
-	LNode *front;
-}List;
-
-
-List *createList();
-LNode *newLNode(int index, int page, int frame);
-
-void addListElement(List *l, int index, int page, int frame);
-void deleteListFirst(List *l);
-int deleteListElement(List *l, int index, int page, int frame);
-bool isInList(List *l, int key);
-char *getList(const List *l);
+List *list_create();
+void list_add(List*, int, int, int);
+void list_pop(List*);
+int list_remove(List*, int, int, int);
+bool list_contains(List*, int);
 
 #endif
-

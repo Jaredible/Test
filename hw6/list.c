@@ -1,203 +1,91 @@
-/* ====================================================================================================
-# Author: Duc Ngo
-# Course: CS4760-001 - Operating System
-# File Name: linklist.c
-# Date: 11/21/2019
-==================================================================================================== */
-#include <stdlib.h>     //exit()
-#include <stdio.h>      //printf()
-#include <stdbool.h>    //bool variable
-#include <stdint.h>     //for uint32_t
-#include <string.h>     //str function
-#include <unistd.h>     //standard symbolic constants and types
-#include "helper.h"
+/*
+ * list.c November 25, 2020
+ * Jared Diehl (jmddnb@umsystem.edu)
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+
 #include "list.h"
 
-
-/* ====================================================================================================
-* Function    :  createList()
-* Definition  :  A utility function to create an empty linked list.
-* Parameter   :  None.
-* Return      :  Struct List.
-==================================================================================================== */
-List *createList()
-{
-	List *l = (List *)malloc(sizeof(List));
-	l->front = NULL;
-	return l;
+List *list_create() {
+    List *list = (List*) malloc(sizeof(List));
+    list->head = NULL;
+    return list;
 }
 
-
-/* ====================================================================================================
-* Function    :  newLNode()
-* Definition  :  A utility function to create a new linked list node.
-* Parameter   :  Integer index, page, and frame.
-* Return      :  Struct LNode.
-==================================================================================================== */
-LNode *newLNode(int index, int page, int frame)
-{ 
-    LNode *temp = (LNode *)malloc(sizeof(LNode));
-    temp->index = index;
-	temp->page = page;
-	temp->frame = frame;
-    temp->next = NULL;
-    return temp;
+ListNode *list_new_node(int index, int page, int frame) {
+    ListNode *node = (ListNode*) malloc(sizeof(ListNode));
+    node->index = index;
+    node->page = page;
+    node->frame = frame;
+    node->next = NULL;
+    return node;
 }
 
+void addListElement(List *list, int index, int page, int frame) {
+    ListNode *node = list_new_node(index, page, frame);
 
-/* ====================================================================================================
-* Function    :  addListElement()
-* Definition  :  The function to add an index, page, and frame to given linked list.
-* Parameter   :  Struct List, integer index, page, and frame.
-* Return      :  None.
-==================================================================================================== */
-void addListElement(List *l, int index, int page, int frame)
-{
-	LNode *temp = newLNode(index, page, frame);
-
-	if(l->front == NULL)
-	{
-		l->front = temp;
-		return;
-	}
-	
-	LNode *next = l->front;
-	while(next->next != NULL)
-	{
-		next = next->next;
-	}
-	next->next = temp;
-}
-
-
-
-/* ====================================================================================================
-* Function    :  deleteListFirst()
-* Definition  :  Function to remove the first element from given linked list.
-* Parameter   :  Struct List.
-* Return      :  None.
-==================================================================================================== */
-void deleteListFirst(List *l) 
-{
-    if(l->front == NULL)
-    {
+    if (list->head == NULL) {
+        list->head = node;
         return;
     }
-    
-    LNode *temp = l->front;
-    l->front = l->front->next;
-    free(temp);
+
+    ListNode *next = list->head;
+    while (next->next != NULL)
+        next = next->next;
+    next->next = node;
 }
 
+void list_pop(List *list) {
+    if (list->head == NULL) return;
 
-/* ====================================================================================================
-* Function    :  deleteListElement()
-* Definition  :  Function to remove a specific index, page, and frame from given linked list.
-* Parameter   :  Struct List, integer index, page, and frame.
-* Return      :  None.
-==================================================================================================== */
-int deleteListElement(List *l, int index, int page, int frame)
-{
-	LNode *current = l->front;
-    LNode *previous = NULL;
-    
-    if(current == NULL)
-    {
-        return -1;
-    }
-    
-    while(current->index != index || current->page != page || current->frame != frame)
-    {
-        if(current->next == NULL)
-        {
-            return -1;
-        }
-        else
-        {
+    ListNode *node = list->head;
+    list->head = list->head->next;
+    free(node);
+}
+
+int list_remove(List *list, int index, int page, int frame) {
+    ListNode *current = list->head;
+    ListNode *previous = NULL;
+
+    if (current == NULL) return -1;
+
+    while (current->index != index || current->page != page || current->frame != frame) {
+        if (current->next == NULL) return -1;
+        else {
             previous = current;
             current = current->next;
         }
     }
-    
-    if(current == l->front)
-    {
-		int x = current->frame;
-		free(current);
-        l->front = l->front->next;
-		return x;
-    }
-    else
-    {
-		int x = previous->next->frame;
-		free(previous->next);
+
+    if (current == list->head) {
+        int n = current->frame;
+        free(current);
+        list->head = list->head->next;
+        return n;
+    } else {
+        int n = previous->next->frame;
+        free(previous->next);
         previous->next = current->next;
-		return x;
+        return n;
     }
 }
 
+bool list_contains(List *list, int key) {
+    ListNode next;
+    next.next = list->head;
 
-/* ====================================================================================================
-* Function    :  isInList()
-* Definition  :  Find the value base on given search key in a given list.
-* Parameter   :  Struct List, and a search key (frame).
-* Return      :  True (if found) or false (if not found).
-==================================================================================================== */
-bool isInList(List *l, int key) 
-{
-    LNode next;
-    next.next = l->front;
+    if (next.next == NULL) return false;
 
-    if(next.next == NULL) 
-    {
-        return false;
+    while (next.next->frame != key) {
+        if (next.next->next == NULL) return false;
+        else next.next = next.next->next;
     }
 
-    while(next.next->frame != key) 
-    {
-        if(next.next->next == NULL) 
-        {
-            return false;
-        }
-        else 
-        {
-            next.next = next.next->next;
-        }
-    }      
-	
     return true;
 }
-
-
-/* ====================================================================================================
-* Function    :  getList()
-* Definition  :  Returns a string representation of the linked list.
-* Parameter   :  Struct List.
-* Return      :  Char pointer.
-==================================================================================================== */
-char *getList(const List *l) 
-{
-	char buf[4096];
-    LNode next;
-    next.next = l->front;
-    
-    if(next.next == NULL) 
-    {
-        return strduplicate(buf);
-    }
-    
-	sprintf(buf, "Linked List: ");
-    while(next.next != NULL) 
-    {
-        sprintf(buf, "%s(%d | %d| %d)", buf, next.next->index, next.next->page, next.next->frame);
-        
-        next.next = (next.next->next != NULL) ? next.next->next : NULL;
-		if(next.next != NULL)
-		{
-			sprintf(buf, "%s, ", buf);
-		}
-    }
-	sprintf(buf, "%s\n", buf);
-
-	return strduplicate(buf);
-}
-

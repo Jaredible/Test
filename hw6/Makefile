@@ -2,11 +2,11 @@ CC         = gcc
 CFLAGS     = -Wall -g
 
 STANDARD   = shared.h
-SRC        = helper.h queue.h list.h
+SRC        = queue.h list.h
 MASTER_SRC = oss.c
 USER_SRC   = user.c
 
-OBJ        = helper.o queue.o list.o
+OBJ        = queue.o list.o
 MASTER_OBJ = $(MASTER_SRC:.c=.o)
 USER_OBJ   = $(USER_SRC:.c=.o)
 
@@ -30,4 +30,3 @@ $(USER): $(USER_OBJ)
 .PHONY: clean
 clean:
 	/bin/rm -f $(OUTPUT) *.o *.dat
-
