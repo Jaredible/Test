@@ -56,11 +56,11 @@ void crash(char*);
 void log(char*, ...);
 void semLock(const int);
 void semUnlock(const int);
+void printDescriptor();
 void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
-void printDescriptor();
 
 static char *programName;
 
@@ -145,6 +145,28 @@ int main(int argc, char **argv) {
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+void initSystem() {
+	int i;
+
+	/* Set default values in system data structures */
+	for (i = 0; i < PROCESSES_MAX; i++) {
+		system->ptable[i].spid = -1;
+		system->ptable[i].pid = -1;
+	}
+}
+
+void initDescriptor() {
+	int i;
+
+	/* Assign initial resources */
+	for (i = 0; i < RESOURCES_MAX; i++)
+		descriptor.resource[i] = rand() % 10 + 1;
+
+	/* Set shared resources */
+	descriptor.shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
+}
+
+/* Simulation driver */
 void simulate() {
 	/* Main run loop */
 	while (true) {
@@ -224,6 +246,7 @@ void handleProcesses() {
 	}
 }
 
+/* Attempts to spawn a new user process, but depends on the simulation's current state */
 void trySpawnProcess() {
 	/* Guard statements checking if we can even attempt to spawn a user process */
 	if (activeCount >= PROCESSES_MAX) return;
@@ -268,6 +291,188 @@ void spawnProcess(int spid) {
 	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
 }
 
+void initPCB(pid_t pid, int spid) {
+	PCB *pcb = &system->ptable[spid];
+
+	pcb->pid = pid;
+	pcb->spid = spid;
+
+	int i;
+
+	/* Set default values in a user process' data structure */
+	for (i = 0; i < RESOURCES_MAX; i++) {
+		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
+		pcb->allocation[i] = 0;
+		pcb->request[i] = 0;
+		pcb->release[i] = 0;
+	}
+}
+
+/* Returns values [0-PROCESSES_MAX] for a found available PID, otherwise -1 for not found */
+int findAvailablePID() {
+	int i;
+	for (i = 0; i < PROCESSES_MAX; i++)
+		if (pids[i] == 0) return i;
+	return -1;
+}
+
+void advanceClock() {
+	semLock(0);
+
+	/* Increment system clock by random amount */
+	int r = rand() % (1 * 1000000) + 1;
+	nextSpawn.ns += r;
+	system->clock.ns += r;
+	while (system->clock.ns >= (1000 * 1000000)) {
+		system->clock.s++;
+		system->clock.ns -= (1000 * 1000000);
+	}
+
+	semUnlock(0);
+}
+
+bool safe(Queue *queue, int index) {
+	int i, p, j, k;
+
+	QueueNode *next;
+	next = queue->front;
+	if (next == NULL) return true;
+
+	int count = queue_size(queue);
+	int max[count][RESOURCES_MAX];
+	int alloc[count][RESOURCES_MAX];
+	int req[RESOURCES_MAX];
+	int need[count][RESOURCES_MAX];
+	int avail[RESOURCES_MAX];
+
+	setMatrix(queue, max, alloc, count);
+	calculateNeed(need, max, alloc, count);
+
+	for (i = 0; i < RESOURCES_MAX; i++) {
+		avail[i] = descriptor.resource[i];
+		req[i] = system->ptable[index].request[i];
+	}
+
+	for (i = 0; i < count; i++)
+		for (j = 0; j < RESOURCES_MAX; j++)
+			avail[j] = avail[j] - alloc[i][j];
+
+	int idx = 0;
+	next = queue->front;
+	while (next != NULL) {
+		if (next->index == index) break;
+		idx++;
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+
+	if (verbose) {
+		printMatrix("Maximum", queue, max, count);
+		printMatrix("Allocation", queue, alloc, count);
+		char buf[BUFFER_LENGTH];
+		sprintf(buf, "P%2d Request", index);
+		printVector(buf, req);
+	}
+
+	bool finish[count];
+	int ss[count];
+	memset(finish, 0, count * sizeof(finish[0]));
+
+	int work[RESOURCES_MAX];
+	for (i = 0; i < RESOURCES_MAX; i++)
+		work[i] = avail[i];
+
+	/* Perform resource request algorithm */
+	for (j = 0; j < RESOURCES_MAX; j++) {
+		if (need[idx][j] < req[j] && j < descriptor.shared) {
+			log("\tAsked for more than initial max request\n");
+
+			if (verbose) {
+				printVector("Available", avail);
+				printMatrix("Need", queue, need, count);
+			}
+
+			return false;
+		}
+
+		if (req[j] <= avail[j] && j < descriptor.shared) {
+			avail[j] -= req[j];
+			alloc[idx][j] += req[j];
+			need[idx][j] -= req[j];
+		} else {
+			log("\tNot enough available resources\n");
+
+			if (verbose) {
+				printVector("Available", avail);
+				printMatrix("Need", queue, need, count);
+			}
+
+			return false;
+		}
+	}
+
+	/* Execute Banker's Algorithm */
+	i = 0;
+	while (index < count) {
+		bool found = false;
+		for (p = 0; p < count; p++) {
+			if (finish[p] == 0) {
+				for (j = 0; j < RESOURCES_MAX; j++)
+					if (need[p][j] > work[j] && descriptor.shared) break;
+
+				if (j == RESOURCES_MAX) {
+					for (k = 0; k < RESOURCES_MAX; k++)
+						work[k] += alloc[p][k];
+
+					ss[i++] = p;
+					finish[p] = 1;
+					found = true;
+				}
+			}
+		}
+
+		if (found == false) {
+			log("System is in UNSAFE (not safe) state\n");
+			return false;
+		}
+	}
+
+	if (verbose) {
+		printVector("Available", avail);
+		printMatrix("Need", queue, need, count);
+	}
+
+	int sequence[count];
+	int seq_index = 0;
+	next = queue->front;
+	while (next != NULL) {
+		sequence[seq_index++] = next->index;
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+
+	log("System is in SAFE state. Safe sequence is: ");
+	for (i = 0; i < count; i++)
+		log("%2d ", sequence[ss[i]]);
+	log("\n\n");
+
+	return true;
+}
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+}
+
+void usage(int status) {
+	if (status != EXIT_SUCCESS) fprintf(stderr, "Try '%s -h' for more information\n", programName);
+	else {
+		printf("Usage: %s [-v]\n", programName);
+		printf("    -v : verbose on\n");
+	}
+	exit(status);
+}
+
 void registerSignalHandlers() {
 	struct sigaction sa;
 
@@ -291,6 +496,39 @@ void signalHandler(int sig) {
 	exit(EXIT_SUCCESS);
 }
 
+void timer(int duration) {
+	struct itimerval val;
+	val.it_value.tv_sec = duration;
+	val.it_value.tv_usec = 0;
+	val.it_interval.tv_sec = 0;
+	val.it_interval.tv_usec = 0;
+	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
+}
+
+void initIPC() {
+	key_t key;
+
+	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((shmid = shmget(key, sizeof(System), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
+	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
+
+	if ((key = ftok(".", 1)) == -1) crash("ftok");
+	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
+
+	if ((key = ftok(".", 2)) == -1) crash("ftok");
+	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
+	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
+}
+
+void freeIPC() {
+	if (system != NULL && shmdt(system) == -1) crash("shmdt");
+	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
+
+	if (msqid > 0 && msgctl(msqid, IPC_RMID, NULL) == -1) crash("msgctl");
+
+	if (semid > 0 && semctl(semid, 0, IPC_RMID) == -1) crash("semctl");
+}
+
 void finalize() {
 	fprintf(stderr, "\n\n");
 	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
@@ -304,6 +542,44 @@ void finalize() {
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
 
+void error(char *fmt, ...) {
+	char buf[BUFFER_LENGTH];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
+	va_end(args);
+	
+	fprintf(stderr, "%s: %s\n", programName, buf);
+	
+	freeIPC();
+}
+
+void crash(char *msg) {
+	char buf[BUFFER_LENGTH];
+	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
+	perror(buf);
+	
+	freeIPC();
+	
+	exit(EXIT_FAILURE);
+}
+
+void log(char *fmt, ...) {
+	FILE *fp = fopen(PATH_LOG, "a+");
+	if(fp == NULL) crash("fopen");
+
+	char buf[BUFFER_LENGTH];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
+	va_end(args);
+
+	fprintf(stderr, buf);
+	fprintf(fp, buf);
+
+	if (fclose(fp) == EOF) crash("fclose");
+}
+
 void semLock(const int index) {
 	struct sembuf sop = { index, -1, 0 };
 	semop(semid, &sop, 1);
@@ -314,33 +590,10 @@ void semUnlock(const int index) {
 	semop(semid, &sop, 1);
 }
 
-void advanceClock() {
-	semLock(0);
-
-	int rns = rand() % (1 * 1000000) + 1;
-	nextSpawn.ns += rns;
-	system->clock.ns += rns;
-
-	while (system->clock.ns >= (1000 * 1000000)) {
-		system->clock.s++;
-		system->clock.ns -= (1000 * 1000000);
-	}
-
-	semUnlock(0);
-}
-
-void initDescriptor() {
-	int i;
-	for (i = 0; i < RESOURCES_MAX; i++)
-		descriptor.resource[i] = rand() % 10 + 1;
-
-	descriptor.shared = (SHARED_RESOURCES_MAX == 0) ? 0 : rand() % (SHARED_RESOURCES_MAX - (SHARED_RESOURCES_MAX - SHARED_RESOURCES_MIN)) + SHARED_RESOURCES_MIN;
-}
-
 void printDescriptor() {
-	log("Total Resource\n<");
-
 	int i;
+
+	log("Total Resource\n<");
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		log("%2d", descriptor.resource[i]);
 		if (i < RESOURCES_MAX - 1) log(" | ");
@@ -348,29 +601,6 @@ void printDescriptor() {
 	log(">\n\n");
 
 	log("Shareable resources: %d\n", descriptor.shared);
-}
-
-void initSystem() {
-	int i;
-	for (i = 0; i < PROCESSES_MAX; i++) {
-		system->ptable[i].spid = -1;
-		system->ptable[i].pid = -1;
-	}
-}
-
-void initPCB(pid_t pid, int spid) {
-	PCB *pcb = &system->ptable[spid];
-
-	pcb->pid = pid;
-	pcb->spid = spid;
-
-	int i;
-	for (i = 0; i < RESOURCES_MAX; i++) {
-		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
-		pcb->allocation[i] = 0;
-		pcb->request[i] = 0;
-		pcb->release[i] = 0;
-	}
 }
 
 void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
@@ -427,222 +657,4 @@ void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int cou
 
 		next = (next->next != NULL) ? next->next : NULL;
 	}
-}
-
-bool safe(Queue *queue, int index) {
-	int i, p, j, k;
-
-	QueueNode *next;
-	next = queue->front;
-	if (next == NULL) return true;
-
-	int count = queue_size(queue);
-	int max[count][RESOURCES_MAX];
-	int alloc[count][RESOURCES_MAX];
-	int req[RESOURCES_MAX];
-	int need[count][RESOURCES_MAX];
-	int avail[RESOURCES_MAX];
-
-	setMatrix(queue, max, alloc, count);
-	calculateNeed(need, max, alloc, count);
-
-	for (i = 0; i < RESOURCES_MAX; i++) {
-		avail[i] = descriptor.resource[i];
-		req[i] = system->ptable[index].request[i];
-	}
-
-	for (i = 0; i < count; i++)
-		for (j = 0; j < RESOURCES_MAX; j++)
-			avail[j] = avail[j] - alloc[i][j];
-
-	int idx = 0;
-	next = queue->front;
-	while (next != NULL) {
-		if (next->index == index) break;
-		idx++;
-		next = (next->next != NULL) ? next->next : NULL;
-	}
-
-	if (verbose) {
-		printMatrix("Maximum", queue, max, count);
-		printMatrix("Allocation", queue, alloc, count);
-		char buf[BUFFER_LENGTH];
-		sprintf(buf, "P%2d Request", index);
-		printVector(buf, req);
-	}
-
-	bool finish[count];
-	int ss[count];
-	memset(finish, 0, count * sizeof(finish[0]));
-
-	int work[RESOURCES_MAX];
-	for (i = 0; i < RESOURCES_MAX; i++)
-		work[i] = avail[i];
-
-	for (j = 0; j < RESOURCES_MAX; j++) {
-		if (need[idx][j] < req[j] && j < descriptor.shared) {
-			log("\tAsked for more than initial max request\n");
-
-			if (verbose) {
-				printVector("Available", avail);
-				printMatrix("Need", queue, need, count);
-			}
-
-			return false;
-		}
-
-		if (req[j] <= avail[j] && j < descriptor.shared) {
-			avail[j] -= req[j];
-			alloc[idx][j] += req[j];
-			need[idx][j] -= req[j];
-		} else {
-			log("\tNot enough available resources\n");
-
-			if (verbose) {
-				printVector("Available", avail);
-				printMatrix("Need", queue, need, count);
-			}
-
-			return false;
-		}
-	}
-
-	i = 0;
-	while (index < count) {
-		bool found = false;
-		for (p = 0; p < count; p++) {
-			if (finish[p] == 0) {
-				for (j = 0; j < RESOURCES_MAX; j++)
-					if (need[p][j] > work[j] && descriptor.shared) break;
-
-				if (j == RESOURCES_MAX) {
-					for (k = 0; k < RESOURCES_MAX; k++)
-						work[k] += alloc[p][k];
-
-					ss[i++] = p;
-					finish[p] = 1;
-					found = true;
-				}
-			}
-		}
-
-		if (found == false) {
-			log("System is in UNSAFE (not safe) state\n");
-			return false;
-		}
-	}
-
-	if (verbose) {
-		printVector("Available", avail);
-		printMatrix("Need", queue, need, count);
-	}
-
-	int sequence[count];
-	int seq_index = 0;
-	next = queue->front;
-	while (next != NULL) {
-		sequence[seq_index++] = next->index;
-		next = (next->next != NULL) ? next->next : NULL;
-	}
-
-	log("System is in SAFE state. Safe sequence is: ");
-	for (i = 0; i < count; i++)
-		log("%2d ", sequence[ss[i]]);
-	log("\n\n");
-
-	return true;
-}
-
-void initIPC() {
-	key_t key;
-
-	if ((key = ftok(".", 0)) == -1) crash("ftok");
-	if ((shmid = shmget(key, sizeof(System), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
-	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
-
-	if ((key = ftok(".", 1)) == -1) crash("ftok");
-	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
-
-	if ((key = ftok(".", 2)) == -1) crash("ftok");
-	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
-	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
-}
-
-void freeIPC() {
-	if (system != NULL && shmdt(system) == -1) crash("shmdt");
-	if (shmid > 0 && shmctl(shmid, IPC_RMID, NULL) == -1) crash("shmdt");
-
-	if (msqid > 0 && msgctl(msqid, IPC_RMID, NULL) == -1) crash("msgctl");
-
-	if (semid > 0 && semctl(semid, 0, IPC_RMID) == -1) crash("semctl");
-}
-
-void crash(char *msg) {
-	char buf[BUFFER_LENGTH];
-	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
-	perror(buf);
-	
-	freeIPC();
-	
-	exit(EXIT_FAILURE);
-}
-
-void error(char *fmt, ...) {
-	char buf[BUFFER_LENGTH];
-	va_list args;
-	va_start(args, fmt);
-	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
-	va_end(args);
-	
-	fprintf(stderr, "%s: %s\n", programName, buf);
-	
-	freeIPC();
-}
-
-void usage(int status) {
-	if (status != EXIT_SUCCESS) fprintf(stderr, "Try '%s -h' for more information\n", programName);
-	else {
-		printf("Usage: %s [-v]\n", programName);
-		printf("    -v : verbose on\n");
-	}
-	exit(status);
-}
-
-void init(int argc, char **argv) {
-	programName = argv[0];
-
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
-}
-
-void log(char *fmt, ...) {
-	FILE *fp = fopen(PATH_LOG, "a+");
-	if(fp == NULL) crash("fopen");
-
-	char buf[BUFFER_LENGTH];
-	va_list args;
-	va_start(args, fmt);
-	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
-	va_end(args);
-
-	fprintf(stderr, buf);
-	fprintf(fp, buf);
-
-	if (fclose(fp) == EOF) crash("fclose");
-}
-
-int findAvailablePID() {
-	int i;
-	for (i = 0; i < PROCESSES_MAX; i++)
-		if (pids[i] == 0) return i;
-	return -1;
-}
-
-void timer(int duration) {
-	struct itimerval val;
-	val.it_value.tv_sec = duration;
-	val.it_value.tv_usec = 0;
-	val.it_interval.tv_sec = 0;
-	val.it_interval.tv_usec = 0;
-	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
 }
