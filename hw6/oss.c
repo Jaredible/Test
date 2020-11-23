@@ -380,9 +380,7 @@ int main(int argc, char *argv[])
 
 							pcbt_shmptr[index].ptable[request_page].dirty = 1;
 						}
-					}
-					else
-					{
+					} else {
 						log(fpw, "%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
 								   exe_name, address, request_page);
 
@@ -391,8 +389,7 @@ int main(int argc, char *argv[])
 						unsigned int lru_address = lru_page << 10;
 						unsigned int lru_frame = lru_stack->head->frame;
 
-						if (pcbt_shmptr[lru_index].ptable[lru_page].dirty == 1)
-						{
+						if (pcbt_shmptr[lru_index].ptable[lru_page].dirty == 1) {
 							log(fpw, "%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
 									   exe_name, lru_address, lru_page);
 						}
@@ -418,23 +415,18 @@ int main(int argc, char *argv[])
 							pcbt_shmptr[index].ptable[request_page].dirty = 1;
 						}
 					}
-				}
-				else
-				{
+				} else {
 					int c_frame = pcbt_shmptr[index].ptable[request_page].frame;
 					list_remove(lru_stack, index, request_page, c_frame);
 					list_add(lru_stack, index, request_page, c_frame);
 
-					if (pcbt_shmptr[index].ptable[request_page].protection == 0)
-					{
+					if (pcbt_shmptr[index].ptable[request_page].protection == 0) {
 						log(fpw, "%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
 								   exe_name, address, request_page,
 								   pcbt_shmptr[index].ptable[request_page].frame,
 								   master_message.spid, master_message.pid,
 								   shmclock_shmptr->s, shmclock_shmptr->ns);
-					}
-					else
-					{
+					} else {
 						log(fpw, "%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
 								   exe_name, address, request_page,
 								   pcbt_shmptr[index].ptable[request_page].frame,
@@ -453,11 +445,8 @@ int main(int argc, char *argv[])
 		}
 
 		while (!queue_empty(queue))
-		{
 			queue_pop(queue);
-		}
-		while (!queue_empty(temp))
-		{
+		while (!queue_empty(temp)) {
 			int i = temp->front->index;
 			queue_push(queue, i);
 			queue_pop(temp);
@@ -469,14 +458,12 @@ int main(int argc, char *argv[])
 		int child_status = 0;
 		pid_t child_pid = waitpid(-1, &child_status, WNOHANG);
 
-		if (child_pid > 0)
-		{
+		if (child_pid > 0) {
 			int return_index = WEXITSTATUS(child_status);
 			bitmap[return_index / 8] &= ~(1 << (return_index % 8));
 		}
 
-		if (fork_number >= TOTAL_PROCESS)
-		{
+		if (fork_number >= TOTAL_PROCESS) {
 			timer(0);
 			masterHandler(0);
 		}
@@ -485,8 +472,7 @@ int main(int argc, char *argv[])
 	return EXIT_SUCCESS;
 }
 
-void log(FILE *fpw, char *fmt, ...)
-{
+void log(FILE *fpw, char *fmt, ...) {
 	char buf[BUFFER_LENGTH];
 	va_list args;
 
@@ -496,41 +482,32 @@ void log(FILE *fpw, char *fmt, ...)
 
 	fprintf(stderr, buf);
 
-	if (fpw != NULL)
-	{
+	if (fpw != NULL) {
 		fprintf(fpw, buf);
 		fflush(fpw);
 	}
 }
 
-void masterInterrupt(int seconds)
-{
+void masterInterrupt(int seconds) {
 	timer(seconds);
 
-	struct sigaction sa1;
-	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &masterHandler;
-	sa1.sa_flags = SA_RESTART;
-	if (sigaction(SIGALRM, &sa1, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	struct sigaction sa;
 
-	struct sigaction sa2;
-	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &masterHandler;
-	sa2.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa2, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &masterHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGALRM, &sa, NULL) == -1) perror("ERROR");
+
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &masterHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa, NULL) == -1) perror("ERROR");
 
 	signal(SIGUSR1, SIG_IGN);
 
 	signal(SIGSEGV, segHandler);
 }
-void masterHandler(int signum)
-{
+void masterHandler(int signum) {
 	finalize();
 
 	double mem_p_sec = (double)memoryaccess_number / (double)shmclock_shmptr->s;
@@ -551,48 +528,39 @@ void masterHandler(int signum)
 
 	cleanUp();
 
-	if (fpw != NULL)
-	{
+	if (fpw != NULL) {
 		fclose(fpw);
 		fpw = NULL;
 	}
 
 	exit(EXIT_SUCCESS);
 }
-void segHandler(int signum)
-{
+void segHandler(int signum) {
 	fprintf(stderr, "Segmentation Fault\n");
 	masterHandler(0);
 }
-void exitHandler(int signum)
-{
+
+void exitHandler(int signum) {
 	fprintf(stderr, "%d: Terminated!\n", getpid());
 	exit(EXIT_SUCCESS);
 }
 
-void timer(int seconds)
-{
+void timer(int seconds) {
 	struct itimerval value;
 	value.it_value.tv_sec = seconds;
 	value.it_value.tv_usec = 0;
 	value.it_interval.tv_sec = 0;
 	value.it_interval.tv_usec = 0;
 
-	if (setitimer(ITIMER_REAL, &value, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+	if (setitimer(ITIMER_REAL, &value, NULL) == -1) perror("ERROR");
 }
 
-void finalize()
-{
+void finalize() {
 	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
 	kill(0, SIGUSR1);
 	pid_t p = 0;
 	while (p >= 0)
-	{
 		p = waitpid(-1, NULL, WNOHANG);
-	}
 }
 
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type)
