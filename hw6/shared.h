@@ -7,6 +7,8 @@
 #define SHARED_H
 
 #include <stdbool.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 typedef unsigned int uint;
 
