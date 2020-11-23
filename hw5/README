@@ -24,7 +24,7 @@ Thus, the user process will not continue executing until a response is received.
 The program has a very low probability of stalling for a reason that I have not been able to figure out.
 If that happens, then press Ctrl+C to exit the program and try rerunning it.
 
-The program will generate a log file called `oss.log`. Use the -v (verbose) flag to have more information printed to the console and log file.
+The program will generate a log file called `output.log`. Use the -v (verbose) flag to have more information printed to the console and log file.
 
 To build this program:
 ```

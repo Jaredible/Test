@@ -43,43 +43,29 @@ void initIPC();
 
 #define SIZE 32
 
-int main(int argc, char *argv[])
-{
-	/* =====Signal Handling====== */
+int main(int argc, char *argv[]) {
 	registerSignalHandlers();
 
-	//--------------------------------------------------
-	/* =====Initialize resources===== */
 	exe_name = argv[0];
 	exe_index = atoi(argv[1]);
 	int m = atoi(argv[2]);
 	srand(getpid());
 
-	//--------------------------------------------------
-	/* =====Getting shared memory===== */
 	initIPC();
 
-	//--------------------------------------------------
 	bool is_terminate = false;
 	int memory_reference = 0;
 	unsigned int address = 0;
 	unsigned int request_page = 0;
-	while (1)
-	{
-		//Waiting for master signal to get resources
+	while (true) {
 		msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
-		//DEBUG fprintf(stderr, "%s (%d): my index [%d]\n", exe_name, getpid(), user_message.index);
 
-		if (memory_reference <= 1000)
-		{
-			//- Requesting Memory -//
+		if (memory_reference <= 1000) {
 			if (m == 0)
 			{
 				address = rand() % 32768 + 0;
 				request_page = address >> 10;
-			}
-			else
-			{
+			} else {
 				double weights[SIZE];
 
 				int i, j;
@@ -118,25 +104,15 @@ int main(int argc, char *argv[])
 				request_page = page;
 			}
 			memory_reference++;
-		}
-		else
-		{
-			is_terminate = true;
-		}
+		} else is_terminate = true;
 
-		//Send a message to master that I got the signal and master should invoke an action base on my data
 		user_message.type = 1;
 		user_message.flag = (is_terminate) ? 0 : 1;
 		user_message.address = address;
 		user_message.page = request_page;
 		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
 
-		//--------------------------------------------------
-		//Determine sleep again or end the current process
-		if (is_terminate)
-		{
-			break;
-		}
+		if (is_terminate) break;
 	}
 
 	exit(exe_index);
