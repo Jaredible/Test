@@ -31,7 +31,7 @@ static char *programName;
 static FILE *fpw = NULL;
 static char *exe_name;
 static int percentage = 0;
-static char log_file[256] = "fifolog.dat";
+static char log_file[256] = "output.log";
 static char isDebugMode = false;
 static char isDisplayTerminal = false;
 static int scheme_choice = 0;
@@ -118,12 +118,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 		}
 	}
-
-	if (algorithm_choice == 1)
-	{
-		strncpy(log_file, "lrulog.dat", 255);
-	}
-
+	
 	//Check for extra arguments
 	if (optind < argc)
 	{
