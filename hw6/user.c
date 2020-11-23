@@ -176,7 +176,6 @@ void initIPC()
 	if (mqueueid < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [message queue] shared memory! Exiting...\n", exe_name);
-		cleanUp();
 		exit(EXIT_FAILURE);
 	}
 
@@ -187,7 +186,6 @@ void initIPC()
 	if (shmclock_shmid < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [shmclock] shared memory! Exiting...\n", exe_name);
-		cleanUp();
 		exit(EXIT_FAILURE);
 	}
 
@@ -196,7 +194,6 @@ void initIPC()
 	if (shmclock_shmptr == (void *)(-1))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
-		cleanUp();
 		exit(EXIT_FAILURE);
 	}
 
@@ -208,7 +205,6 @@ void initIPC()
 	if (pcbt_shmid < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [pcbt] shared memory! Exiting...\n", exe_name);
-		cleanUp();
 		exit(EXIT_FAILURE);
 	}
 
@@ -217,7 +213,6 @@ void initIPC()
 	if (pcbt_shmptr == (void *)(-1))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
-		cleanUp();
 		exit(EXIT_FAILURE);
 	}
 }
