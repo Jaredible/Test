@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
 		if (memory_reference <= 1000)
 		{
 			//- Requesting Memory -//
-			if (false)
+			if (m == 0)
 			{
 				address = rand() % 32768 + 0;
 				request_page = address >> 10;
