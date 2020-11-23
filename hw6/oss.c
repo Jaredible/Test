@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
 						main_memory[last_frame / 8] |= (1 << (last_frame % 8));
 
 						//Frame allocated...
-						addListElement(reference_string, c_index, request_page, last_frame);
+						list_add(reference_string, c_index, request_page, last_frame);
 						printWrite(fpw, "%s: allocated frame [%d] to PID (%d) [%d]\n",
 								   exe_name, last_frame, master_message.spid, master_message.pid);
 

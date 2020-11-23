@@ -27,7 +27,7 @@ ListNode *list_new_node(int index, int page, int frame) {
     return node;
 }
 
-void addListElement(List *list, int index, int page, int frame) {
+void list_add(List *list, int index, int page, int frame) {
     ListNode *node = list_new_node(index, page, frame);
 
     if (list->head == NULL) {
