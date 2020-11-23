@@ -107,30 +107,19 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	//Check for extra arguments
-	if (optind < argc)
-	{
+	if (optind < argc) {
 		fprintf(stderr, "%s ERROR: extra arguments was given! Please use \"-h\" option for more info.\n", exe_name);
 		exit(EXIT_FAILURE);
 	}
 
-	//--------------------------------------------------
-	/* =====Initialize LOG File===== */
 	fpw = fopen(log_file, "w");
-	if (fpw == NULL)
-	{
+	if (fpw == NULL) {
 		fprintf(stderr, "%s ERROR: unable to write the output file.\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
-	//--------------------------------------------------
-	/* =====Initialize BITMAP===== */
-	//Zero out all elements of bit map
 	memset(bitmap, '\0', sizeof(bitmap));
 
-	//--------------------------------------------------
-	/* =====Initialize message queue===== */
-	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
 	key = ftok("./oss.c", 1);
 	mqueueid = msgget(key, IPC_CREAT | 0600);
 	if (mqueueid < 0)
@@ -140,9 +129,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	//--------------------------------------------------
-	/* =====Initialize [shmclock] shared memory===== */
-	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [shmclock] shared memory
 	key = ftok("./oss.c", 2);
 	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
 	if (shmclock_shmid < 0)
@@ -152,7 +138,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
 	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
 	if (shmclock_shmptr == (void *)(-1))
 	{
@@ -161,16 +146,11 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	//Initialize shared memory attribute of [shmclock] and forkclock
 	shmclock_shmptr->s = 0;
 	shmclock_shmptr->ns = 0;
 	forkclock.s = 0;
 	forkclock.ns = 0;
 
-	//--------------------------------------------------
-	/* =====Initialize semaphore===== */
-	//Creating 3 semaphores elements
-	//Create semaphore if doesn't exist with 666 bits permission. Return error if semaphore already exists
 	key = ftok("./oss.c", 3);
 	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
 	if (semid == -1)
@@ -180,12 +160,8 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	//Initialize the semaphore(s) in our set to 1
-	semctl(semid, 0, SETVAL, 1); //Semaphore #0: for [shmclock] shared memory
+	semctl(semid, 0, SETVAL, 1);
 
-	//--------------------------------------------------
-	/* =====Initialize process control block table===== */
-	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [pcbt] shared memory
 	key = ftok("./oss.c", 4);
 	size_t process_table_size = sizeof(PCB) * MAX_PROCESS;
 	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
@@ -196,7 +172,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	//Attaching shared memory and check if can attach it. If not, delete the [pcbt] shared memory
 	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
 	if (pcbt_shmptr == (void *)(-1))
 	{
@@ -205,18 +180,12 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	//Init process control block table variable
 	initPCBT(pcbt_shmptr);
 
-	//--------------------------------------------------
-	/* ===== Queue/Resource ===== */
-	//Set up queue
 	queue = queue_create();
 	reference_string = list_create();
 	lru_stack = list_create();
 
-	//--------------------------------------------------
-	/* =====Signal Handling===== */
 	masterInterrupt(TERMINATION_TIME);
 
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
@@ -227,10 +196,8 @@ int main(int argc, char *argv[])
 		int spawn_nano = rand() % 500000000 + 1000000;
 		if (forkclock.ns >= spawn_nano)
 		{
-			//Reset forkclock
 			forkclock.ns = 0;
 
-			//Do bitmap has an open spot?
 			bool is_bitmap_open = false;
 			int count_process = 0;
 			while (1)
@@ -250,7 +217,6 @@ int main(int argc, char *argv[])
 				count_process++;
 			}
 
-			//Continue to fork if there are still space in the bitmap
 			if (is_bitmap_open == true)
 			{
 				pid = fork();
@@ -263,12 +229,10 @@ int main(int argc, char *argv[])
 					exit(0);
 				}
 
-				if (pid == 0) //Child
+				if (pid == 0)
 				{
-					//Simple signal handler: this is for mis-synchronization when timer fire off
 					signal(SIGUSR1, exitHandler);
 
-					//Replaces the current running process with a new process (user)
 					char arg0[BUFFER_LENGTH];
 					char arg1[BUFFER_LENGTH];
 					sprintf(arg0, "%d", last_index);
@@ -282,62 +246,46 @@ int main(int argc, char *argv[])
 					finalize();
 					cleanUp();
 					exit(EXIT_FAILURE);
-				}
-				else //Parent
-				{
+				} else {
 					fork_number++;
 
-					//Set the current index to one bit (meaning it is taken)
 					bitmap[last_index / 8] |= (1 << (last_index % 8));
 
-					//Initialize user process information to the process control block table
 					initPCB(&pcbt_shmptr[last_index], last_index, pid);
 
-					//Add the process to highest queue
 					queue_push(queue, last_index);
 
-					//Display creation time
 					log(fpw, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name,
 							   pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
 				}
-			} //END OF: is_bitmap_open if check
-		}	  //END OF: forkclock.nanosecond if check
+			}
+		}
 
-		//- CRITICAL SECTION -//
 		incShmclock(0);
 
-		//--------------------------------------------------
-		/* =====Main Driver Procedure===== */
-		//Application procedure queues
-		QueueNode qnext;
-		Queue *trackingQueue = queue_create();
+		QueueNode *next;
+		Queue *temp = queue_create();
 
-		qnext.next = queue->front;
-		while (qnext.next != NULL)
+		next = queue->front;
+		while (next != NULL)
 		{
-			//- CRITICAL SECTION -//
 			incShmclock(0);
 
-			//Sending a message to a specific child to tell him it is his turn
-			int c_index = qnext.next->index;
+			int c_index = next->index;
 			master_message.type = pcbt_shmptr[c_index].pid;
 			master_message.spid = c_index;
 			master_message.pid = pcbt_shmptr[c_index].pid;
 			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
 
-			//Waiting for the specific child to respond back
 			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
 
-			//- CRITICAL SECTION -//
 			incShmclock(0);
 
-			//If child want to terminate, skips the current iteration of the loop and continues with the next iteration
 			if (master_message.flag == 0)
 			{
 				log(fpw, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
 						   exe_name, master_message.spid, master_message.pid, shmclock_shmptr->s, shmclock_shmptr->ns);
 
-				//Return all allocated frame from this process
 				int i;
 				for (i = 0; i < MAX_PAGE; i++)
 				{
@@ -351,11 +299,9 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				//- CRITICAL SECTION -//
 				total_access_time += incShmclock(0);
-				queue_push(trackingQueue, c_index);
+				queue_push(temp, c_index);
 
-				//- Allocate Frames Procedure -//
 				unsigned int address = master_message.address;
 				unsigned int request_page = master_message.page;
 				if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
@@ -374,17 +320,14 @@ int main(int argc, char *argv[])
 				}
 				memoryaccess_number++;
 
-				//Check for valid bit for the current page
 				if (pcbt_shmptr[c_index].ptable[request_page].valid == 0)
 				{
 					log(fpw, "%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
 							   exe_name, address, request_page);
 					pagefault_number++;
 
-					//- CRITICAL SECTION -//
 					total_access_time += incShmclock(14000000);
 
-					//Do main memory has an open spot?
 					bool is_memory_open = false;
 					int count_frame = 0;
 					while (1)
@@ -404,26 +347,20 @@ int main(int argc, char *argv[])
 						count_frame++;
 					}
 
-					//Continue if there are still space in the main memory
 					if (is_memory_open == true)
 					{
-						//Allocate frame to this page and change the valid bit
 						pcbt_shmptr[c_index].ptable[request_page].frame = last_frame;
 						pcbt_shmptr[c_index].ptable[request_page].valid = 1;
 
-						//Set the current frame to one (meaning it is taken)
 						main_memory[last_frame / 8] |= (1 << (last_frame % 8));
 
-						//Frame allocated...
 						list_add(reference_string, c_index, request_page, last_frame);
 						log(fpw, "%s: allocated frame [%d] to PID (%d) [%d]\n",
 								   exe_name, last_frame, master_message.spid, master_message.pid);
 
-						//Update LRU stack
 						list_remove(lru_stack, c_index, request_page, last_frame);
 						list_add(lru_stack, c_index, request_page, last_frame);
 
-						//Giving data to process OR writing data to frame
 						if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
 						{
 							log(fpw, "%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
@@ -446,11 +383,8 @@ int main(int argc, char *argv[])
 					}
 					else
 					{
-						//Memory full...
 						log(fpw, "%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
 								   exe_name, address, request_page);
-
-						//- Memory Management -//
 
 						unsigned int lru_index = lru_stack->head->index;
 						unsigned int lru_page = lru_stack->head->page;
@@ -463,7 +397,6 @@ int main(int argc, char *argv[])
 									   exe_name, lru_address, lru_page);
 						}
 
-						//Replacing procedure
 						pcbt_shmptr[lru_index].ptable[lru_page].frame = -1;
 						pcbt_shmptr[lru_index].ptable[lru_page].dirty = 0;
 						pcbt_shmptr[lru_index].ptable[lru_page].valid = 0;
@@ -472,13 +405,11 @@ int main(int argc, char *argv[])
 						pcbt_shmptr[c_index].ptable[request_page].dirty = 0;
 						pcbt_shmptr[c_index].ptable[request_page].valid = 1;
 
-						//Update LRU stack and reference string
 						list_remove(lru_stack, lru_index, lru_page, lru_frame);
 						list_remove(reference_string, lru_index, lru_page, lru_frame);
 						list_add(lru_stack, c_index, request_page, lru_frame);
 						list_add(reference_string, c_index, request_page, lru_frame);
 
-						//Modify dirty bit when requesting write of address
 						if (pcbt_shmptr[c_index].ptable[request_page].protection == 1)
 						{
 							log(fpw, "%s: dirty bit of frame (%d) set, adding additional time to the clock\n", exe_name, last_frame);
@@ -490,12 +421,10 @@ int main(int argc, char *argv[])
 				}
 				else
 				{
-					//Update LRU stack
 					int c_frame = pcbt_shmptr[c_index].ptable[request_page].frame;
 					list_remove(lru_stack, c_index, request_page, c_frame);
 					list_add(lru_stack, c_index, request_page, c_frame);
 
-					//Giving data to process OR writing data to frame
 					if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
 					{
 						log(fpw, "%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
@@ -511,57 +440,47 @@ int main(int argc, char *argv[])
 								   pcbt_shmptr[c_index].ptable[request_page].frame,
 								   shmclock_shmptr->s, shmclock_shmptr->ns);
 					}
-				} //END OF: page_table.valid
-			}	  //END OF: master_message.flag
+				}
+			}
 
-			//Point the pointer to the next queue element
-			qnext.next = (qnext.next->next != NULL) ? qnext.next->next : NULL;
+			next = (next->next != NULL) ? next->next : NULL;
 
-			//Reset master message
 			master_message.type = -1;
 			master_message.spid = -1;
 			master_message.pid = -1;
 			master_message.flag = -1;
 			master_message.page = -1;
-		} //END OF: qnext.next
+		}
 
-		//--------------------------------------------------
-		//Reassigned the current queue
 		while (!queue_empty(queue))
 		{
 			queue_pop(queue);
 		}
-		while (!queue_empty(trackingQueue))
+		while (!queue_empty(temp))
 		{
-			int i = trackingQueue->front->index;
+			int i = temp->front->index;
 			queue_push(queue, i);
-			queue_pop(trackingQueue);
+			queue_pop(temp);
 		}
-		free(trackingQueue);
+		free(temp);
 
-		//- CRITICAL SECTION -//
 		incShmclock(0);
 
-		//--------------------------------------------------
-		//Check to see if a child exit, wait no bound (return immediately if no child has exit)
 		int child_status = 0;
 		pid_t child_pid = waitpid(-1, &child_status, WNOHANG);
 
-		//Set the return index bit back to zero (which mean there is a spot open for this specific index in the bitmap)
 		if (child_pid > 0)
 		{
 			int return_index = WEXITSTATUS(child_status);
 			bitmap[return_index / 8] &= ~(1 << (return_index % 8));
 		}
 
-		//--------------------------------------------------
-		//End the infinite loop when reached X forking times. Turn off timer to avoid collision.
 		if (fork_number >= TOTAL_PROCESS)
 		{
 			timer(0);
 			masterHandler(0);
 		}
-	} //END OF: infinite while loop #1
+	}
 
 	return EXIT_SUCCESS;
 }
@@ -586,10 +505,8 @@ void log(FILE *fpw, char *fmt, ...)
 
 void masterInterrupt(int seconds)
 {
-	//Invoke timer for termination
 	timer(seconds);
 
-	//Signal Handling for: SIGALRM
 	struct sigaction sa1;
 	sigemptyset(&sa1.sa_mask);
 	sa1.sa_handler = &masterHandler;
@@ -599,7 +516,6 @@ void masterInterrupt(int seconds)
 		perror("ERROR");
 	}
 
-	//Signal Handling for: SIGINT
 	struct sigaction sa2;
 	sigemptyset(&sa2.sa_mask);
 	sa2.sa_handler = &masterHandler;
@@ -609,17 +525,14 @@ void masterInterrupt(int seconds)
 		perror("ERROR");
 	}
 
-	//Signal Handling for: SIGUSR1
 	signal(SIGUSR1, SIG_IGN);
 
-	//Signal Handling for: SIGSEGV
 	signal(SIGSEGV, segHandler);
 }
 void masterHandler(int signum)
 {
 	finalize();
 
-	//Print out basic statistic
 	double mem_p_sec = (double)memoryaccess_number / (double)shmclock_shmptr->s;
 	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
 	double avg_m = (double)total_access_time / (double)memoryaccess_number;
@@ -638,7 +551,6 @@ void masterHandler(int signum)
 
 	cleanUp();
 
-	//Final check for closing log file
 	if (fpw != NULL)
 	{
 		fclose(fpw);
