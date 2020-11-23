@@ -515,7 +515,7 @@ void initIPC() {
 	if ((key = ftok(KEY_PATHNAME, KEY_ID_MESSAGE_QUEUE)) == -1) crash("ftok");
 	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
 
-	if ((key = ftok(".", 2)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, KEY_ID_SEMAPHORE)) == -1) crash("ftok");
 	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
 	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
 }
