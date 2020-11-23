@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 	srand(getpid());
 
 	int opt;
-	while ((opt = getopt(argc, argv, "hl:dta:")) != -1)
+	while ((opt = getopt(argc, argv, "hm:")) != -1)
 	{
 		switch (opt)
 		{
