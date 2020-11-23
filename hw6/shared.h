@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-typedef unsigned int uint;
+#define system _system
 
 #define BUFFER_LENGTH 4096
 
@@ -32,6 +32,8 @@ typedef unsigned int uint;
 #define MEMORY_SIZE 256000
 #define FRAME_SIZE PAGE_SIZE
 #define MAX_FRAME (MEMORY_SIZE / FRAME_SIZE)
+
+typedef unsigned int uint;
 
 typedef struct {
 	unsigned int s;

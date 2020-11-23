@@ -33,7 +33,6 @@ static pid_t pids[PROCESSES_MAX];
 static char *programName;
 
 static int scheme = 0;
-static key_t key;
 static Queue *queue;
 static Time nextSpawn;
 
@@ -59,7 +58,6 @@ void log(char*, ...);
 void masterInterrupt(int);
 void masterHandler(int);
 void segHandler(int);
-void exitHandler(int);
 void timer(int);
 void finalize();
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type);
@@ -138,10 +136,6 @@ int main(int argc, char *argv[]) {
 
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
-	FILE *fp;
-	if ((fp = fopen("output.log", "w")) == NULL) perror("ERROR");
-	if (fclose(fp) == EOF) perror("ERROR");
-
 	int last_index = -1;
 	while (1)
 	{
@@ -181,35 +175,25 @@ int main(int argc, char *argv[]) {
 					exit(0);
 				}
 
-				if (pid == 0)
-				{
-					signal(SIGUSR1, exitHandler);
-
+				if (pid == 0) {
 					char arg0[BUFFER_LENGTH];
 					char arg1[BUFFER_LENGTH];
 					sprintf(arg0, "%d", last_index);
 					sprintf(arg1, "%d", scheme);
-					int exect_status = execl("./user", "user", arg0, arg1, (char*) NULL);
-					if (exect_status == -1)
-					{
-						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", programName, last_index);
-					}
-
-					finalize();
-					cleanUp();
-					exit(EXIT_FAILURE);
-				} else {
-					fork_number++;
-
-					bitmap[last_index / 8] |= (1 << (last_index % 8));
-
-					initPCB(&system->ptable[last_index], last_index, pid);
-
-					queue_push(queue, last_index);
-
-					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-							   system->ptable[last_index].spid, system->ptable[last_index].pid, system->clock.s, system->clock.ns);
+					execl("./user", "user", arg0, arg1, (char*) NULL);
+					crash("execl");
 				}
+
+				fork_number++;
+
+				bitmap[last_index / 8] |= (1 << (last_index % 8));
+
+				initPCB(&system->ptable[last_index], last_index, pid);
+
+				queue_push(queue, last_index);
+
+				log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
+							system->ptable[last_index].spid, system->ptable[last_index].pid, system->clock.s, system->clock.ns);
 			}
 		}
 
@@ -469,11 +453,6 @@ void masterHandler(int signum) {
 void segHandler(int signum) {
 	fprintf(stderr, "Segmentation Fault\n");
 	masterHandler(0);
-}
-
-void exitHandler(int signum) {
-	fprintf(stderr, "%d: Terminated!\n", getpid());
-	exit(EXIT_SUCCESS);
 }
 
 void timer(int duration) {
