@@ -508,14 +508,14 @@ void timer(int duration) {
 void initIPC() {
 	key_t key;
 
-	if ((key = ftok(KEY_PATHNAME, KEY_ID_SYSTEM)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, 0)) == -1) crash("ftok");
 	if ((shmid = shmget(key, sizeof(System), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
 	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
-	if ((key = ftok(KEY_PATHNAME, KEY_ID_MESSAGE_QUEUE)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, 1)) == -1) crash("ftok");
 	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
 
-	if ((key = ftok(KEY_PATHNAME, KEY_ID_SEMAPHORE)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, 2)) == -1) crash("ftok");
 	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
 	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
 }

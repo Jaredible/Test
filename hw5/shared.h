@@ -20,7 +20,7 @@
 #define KEY_ID_SEMAPHORE 2
 #define PERMS (S_IRUSR | S_IWUSR)
 
-#define PATH_LOG "./output.log"
+#define PATH_LOG "output.log"
 #define TIMEOUT 5
 #define PROCESSES_MAX 18
 #define PROCESSES_TOTAL 40
