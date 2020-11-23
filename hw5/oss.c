@@ -54,8 +54,8 @@ void finalize();
 void error(char*, ...);
 void crash(char*);
 void log(char*, ...);
-void semLock(int);
-void semUnlock(int);
+void semLock(const int);
+void semUnlock(const int);
 void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void printVector(char*, int[RESOURCES_MAX]);
@@ -146,12 +146,14 @@ int main(int argc, char **argv) {
 }
 
 void simulate() {
+	/* Main run loop */
 	while (true) {
 		trySpawnProcess();
 		advanceClock();
 		handleProcesses();
 		advanceClock();
 
+		/* Catch an exited user process */
 		int status;
 		pid_t pid = waitpid(-1, &status, WNOHANG);
 		if (pid > 0) {
@@ -160,41 +162,52 @@ void simulate() {
 			activeCount--;
 			exitCount++;
 		}
+
+		/* Stop simulating if the last user process has exited */
+		if (exitCount == PROCESSES_TOTAL) break;
 	}
 }
 
+/* Sends and receives messages from user processes, and acts upon them */
 void handleProcesses() {
 	int i, count = 0;
 	QueueNode *next = queue->front;
 	
+	/* While we have user processes to simulate */
 	while (next != NULL) {
 		advanceClock();
 
+		/* Send a message to a user process saying it's your turn to "run" */
 		int index = next->index;
 		message.type = system->ptable[index].pid;
 		message.spid = index;
 		message.pid = system->ptable[index].pid;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
+		/* Receive a response of what they're doing */
 		msgrcv(msqid, &message, sizeof(Message), 1, 0);
 
 		advanceClock();
 
+		/* Check if user process has terminated */
 		if (message.terminate == 0) {
 			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
+			/* Remove user process from queue */
 			queue_remove(queue, index);
-
 			next = queue->front;
 			for (i = 0; i < count; i++)
 				next = (next->next != NULL) ? next->next : NULL;
 
+			/* Move on to the next user process to simulate */
 			continue;
 		}
 
+		/* Check if user process has requested resources */
 		if (message.request) {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
+			/* Respond back whether their request is safe or not */
 			message.type = system->ptable[index].pid;
 			message.safe = safe(queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
@@ -202,54 +215,73 @@ void handleProcesses() {
 
 		advanceClock();
 
+		/* Check if user process has released resources */
 		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		
+		/* On to the next user process to simulate */
 		count++;
-
 		next = (next->next != NULL) ? next->next : NULL;
 	}
 }
 
 void trySpawnProcess() {
-	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= (rand() % (500 + 1)) * 1000000) {
-		nextSpawn.ns = 0;
-		int spid = findAvailablePID();
-		if (spid >= 0) spawnProcess(spid);
-	}
+	/* Guard statements checking if we can even attempt to spawn a user process */
+	if (activeCount >= PROCESSES_MAX) return;
+	if (spawnCount >= PROCESSES_TOTAL) return;
+	if (nextSpawn.ns < (rand() % (500 + 1)) * 1000000) return;
+
+	/* Reset next spawn time */
+	nextSpawn.ns = 0;
+
+	/* Try to find an available simulated PID */
+	int spid = findAvailablePID();
+
+	/* Guard statement checking if we did find a PID */
+	if (spid == -1) return;
+
+	/* Now we can spawn a simulated user process */
+	spawnProcess(spid);
 }
 
 void spawnProcess(int spid) {
+	/* Fork a new user process */
 	pid_t pid = fork();
+
+	/* Record its PID */
 	pids[spid] = pid;
 
 	if (pid == -1) crash("fork");
 	else if (pid == 0) {
+		/* Since child, execute a new user process */
 		char arg[BUFFER_LENGTH];
 		snprintf(arg, BUFFER_LENGTH, "%d", spid);
 		execl("./user", "user", arg, (char*) NULL);
 		crash("execl");
 	}
 
+	/* Since parent, initialize the new user process for simulation */
 	initPCB(pid, spid);
 	queue_push(queue, spid);
 	activeCount++;
 	spawnCount++;
+
 	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
 }
 
 void registerSignalHandlers() {
-	timer(TIMEOUT);
-
 	struct sigaction sa;
-	sigemptyset(&sa.sa_mask);
+
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
+
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
 	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
 	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
 
-	sigemptyset(&sa.sa_mask);
-	sa.sa_handler = &signalHandler;
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
+	timer(TIMEOUT);
 
 	signal(SIGUSR1, SIG_IGN);
 }
@@ -266,11 +298,13 @@ void finalize() {
 
 	freeIPC();
 
+	/* Kill all remaining user processes */
 	kill(0, SIGUSR1);
+	/* Wait for every last one to exit */
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
 
-void semLock(int index) {
+void semLock(const int index) {
 	struct sembuf sop = { index, -1, 0 };
 	semop(semid, &sop, 1);
 }
