@@ -28,44 +28,19 @@
 
 #define log _log
 
-static char *programName;
-
-static int shmid = -1;
-static int msqid = -1;
-static int semid = -1;
-static System *system = NULL;
-static Message message;
-
-static int activeCount = 0;
-static int spawnCount = 0;
-static int exitCount = 0;
-
-static Queue *queue;
-static Time nextSpawn;
-static ResourceDescriptor descriptor;
-
+/* Simulation functions */
+void initSystem();
+void initDescriptor();
 void simulate();
 void handleProcesses();
 void trySpawnProcess();
 void spawnProcess(int);
-int findAvailablePID();
-
-void semaLock(int);
-void semaRelease(int);
-void advanceClock();
-
-void initDescriptor();
-void printDescriptor();
-
-void initSystem();
 void initPCB(pid_t, int);
-
-void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
-void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
-void printVector(char*, int[RESOURCES_MAX]);
-void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
+int findAvailablePID();
+void advanceClock();
 bool safe(Queue*, int);
 
+/* Program lifecycle functions */
 void init(int, char**);
 void usage(int);
 void registerSignalHandlers();
@@ -74,11 +49,36 @@ void timer(int);
 void initIPC();
 void freeIPC();
 void finalize();
+
+/* Utility functions */
 void error(char*, ...);
 void crash(char*);
 void log(char*, ...);
+void semLock(int);
+void semUnlock(int);
+void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
+void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
+void printVector(char*, int[RESOURCES_MAX]);
+void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
+void printDescriptor();
 
+static char *programName;
+
+/* IPC variables */
+static int shmid = -1;
+static int msqid = -1;
+static int semid = -1;
+static System *system = NULL;
+static Message message;
+
+/* Simulation variables */
 static bool verbose = false;
+static Queue *queue;
+static Time nextSpawn;
+static ResourceDescriptor descriptor;
+static int activeCount = 0;
+static int spawnCount = 0;
+static int exitCount = 0;
 static pid_t pids[PROCESSES_MAX];
 
 int main(int argc, char **argv) {
@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
 
 	bool ok = true;
 
+	/* Get program arguments */
 	while (true) {
 		int c = getopt(argc, argv, "hv");
 		if (c == -1) break;
@@ -102,6 +103,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	/* Check for unknown arguments */
 	if (optind < argc) {
 		char buf[BUFFER_LENGTH];
 		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
@@ -115,29 +117,29 @@ int main(int argc, char **argv) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
-	initIPC();
+	registerSignalHandlers();
 
-	memset(pids, 0, sizeof(pids));
-
-	system->clock.s = 0;
-	system->clock.ns = 0;
-	nextSpawn.s = 0;
-	nextSpawn.ns = 0;
-
+	/* Clear log file */
 	FILE *fp;
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
 	if (fclose(fp) == EOF) crash("fclose");
 
+	/* Setup simulation */
+	initIPC();
+	memset(pids, 0, sizeof(pids));
+	system->clock.s = 0;
+	system->clock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
 	initSystem();
-
 	queue = queue_create();
 	initDescriptor();
 	printDescriptor();
 
-	registerSignalHandlers();
-
+	/* Start simulating */
 	simulate();
 
+	/* Cleanup resources */
 	finalize();
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
@@ -270,18 +272,18 @@ void finalize() {
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
 
-void semaLock(int index) {
+void semLock(int index) {
 	struct sembuf sop = { index, -1, 0 };
 	semop(semid, &sop, 1);
 }
 
-void semaRelease(const int index) {
+void semUnlock(const int index) {
 	struct sembuf sop = { index, 1, 0 };
 	semop(semid, &sop, 1);
 }
 
 void advanceClock() {
-	semaLock(0);
+	semLock(0);
 
 	int rns = rand() % (1 * 1000000) + 1;
 	nextSpawn.ns += rns;
@@ -292,7 +294,7 @@ void advanceClock() {
 		system->clock.ns -= (1000 * 1000000);
 	}
 
-	semaRelease(0);
+	semUnlock(0);
 }
 
 void initDescriptor() {
