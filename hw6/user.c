@@ -175,7 +175,7 @@ void initIPC()
 	//--------------------------------------------------
 	/* =====Getting process control block table===== */
 	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * MAX_PROCESS;
+	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
 	pcbt_shmid = shmget(key, process_table_size, 0600);
 	if (pcbt_shmid < 0)
 	{
