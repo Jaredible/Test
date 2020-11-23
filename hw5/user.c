@@ -171,7 +171,7 @@ void initIPC() {
 	if ((shmid = shmget(key, sizeof(System), 0)) == -1) crash("shmget");
 	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
-	if ((key = ftok(".", 1)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, KEY_ID_MESSAGE_QUEUE)) == -1) crash("ftok");
 	if ((msqid = msgget(key, 0)) == -1) crash("msgget");
 }
 
