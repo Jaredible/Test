@@ -30,12 +30,8 @@ static char *programName;
 
 static FILE *fpw = NULL;
 static char *exe_name;
-static int percentage = 0;
 static char log_file[256] = "output.log";
-static char isDebugMode = false;
-static char isDisplayTerminal = false;
 static int scheme_choice = 0;
-static int algorithm_choice = 1;
 static key_t key;
 static Queue *queue;
 static Time forkclock;
@@ -99,26 +95,16 @@ int main(int argc, char *argv[])
 			printf("	-t           : display result in the terminal as well (default is off).\n");
 			printf("	-a number    : 0 is using FIFO algorithm, while 1 is using LRU algorithm (default is 0).\n");
 			exit(EXIT_SUCCESS);
-
-		case 'l':
-			strncpy(log_file, optarg, 255);
-			fprintf(stderr, "Your new log file is: %s\n", log_file);
-			break;
-		case 't':
-			isDisplayTerminal = true;
-			break;
-
 		case 'm':
 			scheme_choice = atoi(optarg);
 			scheme_choice = (scheme_choice < 0 || scheme_choice > 1) ? 0 : scheme_choice;
 			break;
-
 		default:
 			fprintf(stderr, "%s: please use \"-h\" option for more info.\n", exe_name);
 			exit(EXIT_FAILURE);
 		}
 	}
-	
+
 	//Check for extra arguments
 	if (optind < argc)
 	{
@@ -231,23 +217,12 @@ int main(int argc, char *argv[])
 	/* =====Signal Handling===== */
 	masterInterrupt(TERMINATION_TIME);
 
-	if (isDebugMode)
-	{
-		fprintf(stderr, "DEBUG mode is ON\n");
-	}
-	if (algorithm_choice == 0)
-	{
-		fprintf(stderr, "Using First In First Out (FIFO) algorithm.\n");
-	}
-	else
-	{
-		fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
-	}
+	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
 	int last_index = -1;
 	while (1)
 	{
-		int spawn_nano = (isDebugMode) ? 100 : rand() % 500000000 + 1000000;
+		int spawn_nano = rand() % 500000000 + 1000000;
 		if (forkclock.ns >= spawn_nano)
 		{
 			//Reset forkclock
@@ -308,15 +283,6 @@ int main(int argc, char *argv[])
 				}
 				else //Parent
 				{
-					//Increment the total number of fork in execution
-					if (!isDisplayTerminal && (fork_number == percentage))
-					{
-						if (fork_number < TOTAL_PROCESS - 1 || TOTAL_PROCESS % 2 != 1)
-						{
-							fprintf(stderr, "%c%c%c%c%c", 219, 219, 219, 219, 219);
-						}
-						percentage += (int)(ceil(TOTAL_PROCESS * 0.1));
-					}
 					fork_number++;
 
 					//Set the current index to one bit (meaning it is taken)
@@ -452,11 +418,8 @@ int main(int argc, char *argv[])
 								   exe_name, last_frame, master_message.spid, master_message.pid);
 
 						//Update LRU stack
-						if (algorithm_choice == 1)
-						{
-							list_remove(lru_stack, c_index, request_page, last_frame);
-							list_add(lru_stack, c_index, request_page, last_frame);
-						}
+						list_remove(lru_stack, c_index, request_page, last_frame);
+						list_add(lru_stack, c_index, request_page, last_frame);
 
 						//Giving data to process OR writing data to frame
 						if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
@@ -610,10 +573,7 @@ void log(FILE *fpw, char *fmt, ...)
 	vsprintf(buf, fmt, args);
 	va_end(args);
 
-	if (isDisplayTerminal)
-	{
-		fprintf(stderr, buf);
-	}
+	fprintf(stderr, buf);
 
 	if (fpw != NULL)
 	{
@@ -655,10 +615,6 @@ void masterInterrupt(int seconds)
 }
 void masterHandler(int signum)
 {
-	if (!isDisplayTerminal)
-	{
-		fprintf(stderr, "%8s(%d/%d)\n\n", "", fork_number, TOTAL_PROCESS);
-	}
 	finalize();
 
 	//Print out basic statistic
