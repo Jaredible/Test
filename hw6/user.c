@@ -31,11 +31,11 @@ static key_t key;
 static int mqueueid = -1;
 static Message user_message;
 static int shmclock_shmid = -1;
-static SharedClock *shmclock_shmptr = NULL;
+static Time *shmclock_shmptr = NULL;
 static int semid = -1;
 static struct sembuf sema_operation;
 static int pcbt_shmid = -1;
-static ProcessControlBlock *pcbt_shmptr = NULL;
+static PCB *pcbt_shmptr = NULL;
 
 
 /* Prototype Function */
@@ -166,10 +166,10 @@ int main(int argc, char *argv[]) {
 		
 			
 		//Send a message to master that I got the signal and master should invoke an action base on my data
-		user_message.mtype = 1;
+		user_message.type = 1;
 		user_message.flag = (is_terminate) ? 0 : 1;
 		user_message.address = address;
-		user_message.requestPage = request_page;
+		user_message.page = request_page;
 		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
 
 
@@ -312,7 +312,7 @@ void getSharedMemory()
 	//--------------------------------------------------
 	/* =====Getting [shmclock] shared memory===== */
 	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(SharedClock), 0600);
+	shmclock_shmid = shmget(key, sizeof(Time), 0600);
 	if(shmclock_shmid < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [shmclock] shared memory! Exiting...\n", exe_name);
@@ -344,7 +344,7 @@ void getSharedMemory()
 	//--------------------------------------------------
 	/* =====Getting process control block table===== */
 	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(ProcessControlBlock) * MAX_PROCESS;
+	size_t process_table_size = sizeof(PCB) * MAX_PROCESS;
 	pcbt_shmid = shmget(key, process_table_size, 0600);
 	if(pcbt_shmid < 0)
 	{
