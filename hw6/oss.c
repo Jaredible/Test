@@ -382,7 +382,7 @@ int main(int argc, char *argv[])
 					if (pcbt_shmptr[c_index].ptable[i].frame != -1)
 					{
 						int frame = pcbt_shmptr[c_index].ptable[i].frame;
-						deleteListElement(reference_string, c_index, i, frame);
+						list_remove(reference_string, c_index, i, frame);
 						main_memory[frame / 8] &= ~(1 << (frame % 8));
 					}
 				}
@@ -460,8 +460,8 @@ int main(int argc, char *argv[])
 						//Update LRU stack
 						if (algorithm_choice == 1)
 						{
-							deleteListElement(lru_stack, c_index, request_page, last_frame);
-							addListElement(lru_stack, c_index, request_page, last_frame);
+							list_remove(lru_stack, c_index, request_page, last_frame);
+							list_add(lru_stack, c_index, request_page, last_frame);
 						}
 
 						//Giving data to process OR writing data to frame
@@ -514,10 +514,10 @@ int main(int argc, char *argv[])
 						pcbt_shmptr[c_index].ptable[request_page].valid = 1;
 
 						//Update LRU stack and reference string
-						deleteListElement(lru_stack, lru_index, lru_page, lru_frame);
-						deleteListElement(reference_string, lru_index, lru_page, lru_frame);
-						addListElement(lru_stack, c_index, request_page, lru_frame);
-						addListElement(reference_string, c_index, request_page, lru_frame);
+						list_remove(lru_stack, lru_index, lru_page, lru_frame);
+						list_remove(reference_string, lru_index, lru_page, lru_frame);
+						list_add(lru_stack, c_index, request_page, lru_frame);
+						list_add(reference_string, c_index, request_page, lru_frame);
 
 						//Modify dirty bit when requesting write of address
 						if (pcbt_shmptr[c_index].ptable[request_page].protection == 1)
@@ -533,8 +533,8 @@ int main(int argc, char *argv[])
 				{
 					//Update LRU stack
 					int c_frame = pcbt_shmptr[c_index].ptable[request_page].frame;
-					deleteListElement(lru_stack, c_index, request_page, c_frame);
-					addListElement(lru_stack, c_index, request_page, c_frame);
+					list_remove(lru_stack, c_index, request_page, c_frame);
+					list_add(lru_stack, c_index, request_page, c_frame);
 
 					//Giving data to process OR writing data to frame
 					if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
