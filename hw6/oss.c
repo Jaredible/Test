@@ -232,8 +232,8 @@ int main(int argc, char *argv[])
 	/* ===== Queue/Resource ===== */
 	//Set up queue
 	queue = queue_create();
-	reference_string = createList();
-	lru_stack = createList();
+	reference_string = list_create();
+	lru_stack = list_create();
 
 	//--------------------------------------------------
 	/* =====Signal Handling===== */
