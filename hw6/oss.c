@@ -73,7 +73,6 @@ void semaRelease(int sem_index);
 int incShmclock(int increment);
 
 void initPCBT(PCB *pcbt);
-char *getPCBT(PCB *pcbt);
 void initPCB(PCB *pcb, int index, pid_t pid);
 
 int main(int argc, char *argv[])
@@ -816,26 +815,6 @@ void initPCBT(PCB *pcbt)
 			pcbt[i].ptable[j].valid = 0;
 		}
 	}
-}
-
-char *getPCBT(PCB *pcbt)
-{
-	int i;
-	char buf[4096];
-
-	sprintf(buf, "PCBT: ");
-	for (i = 0; i < MAX_PROCESS; i++)
-	{
-		sprintf(buf, "%s(%d| %d)", buf, pcbt[i].spid, pcbt[i].pid);
-
-		if (i < MAX_PROCESS - 1)
-		{
-			sprintf(buf, "%s, ", buf);
-		}
-	}
-	sprintf(buf, "%s\n", buf);
-
-	return strduplicate(buf);
 }
 
 void initPCB(PCB *pcb, int index, pid_t pid)
