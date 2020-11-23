@@ -712,3 +712,6 @@ int findAvailablePID() {
 		if (pids[i] == 0) return i;
 	return -1;
 }
+
+void freeIPC() {
+}
