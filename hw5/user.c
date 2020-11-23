@@ -24,18 +24,19 @@
 
 #include "shared.h"
 
-static char *programName;
-
-static int shmid = -1;
-static int msqid = -1;
-static System *system = NULL;
-static Message message;
-
 void init(int, char**);
 void registerSignalHandlers();
 void signalHandler(int);
 void initIPC();
 void crash(char*);
+
+static char *programName;
+
+/* IPC variables */
+static int shmid = -1;
+static int msqid = -1;
+static System *system = NULL;
+static Message message;
 
 int main(int argc, char **argv) {
 	init(argc, argv);
@@ -58,9 +59,12 @@ int main(int argc, char **argv) {
 	bool old = false;
 	int i;
 
+	/* Decision loop */
 	while (true) {
+		/* Wait until we get a message from OSS telling us it's our turn to "run" */
 		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
+		/* Check if has run for long enough */
 		if (!old) {
 			duration.s = system->clock.s;
 			duration.ns = system->clock.ns;
@@ -75,6 +79,7 @@ int main(int argc, char **argv) {
 		if (!started || !old) choice = rand() % 2 + 0;
 		else choice = rand() % 3 + 0;
 
+		/* Make a decision (i.e., terminate, request, or release) */
 		switch (choice) {
 			case 0:
 				started = true;
@@ -96,15 +101,18 @@ int main(int argc, char **argv) {
 				break;
 		}
 
+		/* Send that decision to OSS */
 		message.type = 1;
 		message.terminate = terminating ? 0 : 1;
 		message.request = requesting ? true : false;
 		message.release = terminating ? true : false;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
+		/* Act upon that decision */
 		if (terminating) break;
 		else {
 			if (requesting) {
+				/* Wait for OSS to determine if the system is safe or not */
 				msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
 
 				if (message.safe) {
@@ -140,19 +148,20 @@ void init(int argc, char **argv) {
 
 void registerSignalHandlers() {
 	struct sigaction sa;
-	sigemptyset(&sa.sa_mask);
+
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
 	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
 	if (sigaction(SIGUSR1, &sa, NULL) == -1) crash("sigaction");
 
-	sigemptyset(&sa.sa_mask);
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
 	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
 	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
 }
 
 void signalHandler(int sig) {
-	exit(2);
+	exit(EXIT_FAILURE);
 }
 
 void initIPC() {
