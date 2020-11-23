@@ -63,7 +63,6 @@ void exitHandler(int);
 void timer(int);
 void finalize();
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type);
-void cleanUp();
 void semLock(const int);
 void semUnlock(const int);
 int advanceClock(int);
@@ -116,12 +115,18 @@ int main(int argc, char *argv[]) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
-	memset(bitmap, '\0', sizeof(bitmap));
+	initIPC();
+
+	memset(pids, 0, sizeof(pids));
 
 	system->clock.s = 0;
 	system->clock.ns = 0;
 	nextSpawn.s = 0;
 	nextSpawn.ns = 0;
+
+	FILE *fp;
+	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
+	if (fclose(fp) == EOF) crash("fclose");
 
 	initSystem();
 
@@ -458,25 +463,6 @@ void masterInterrupt(int seconds) {
 
 void masterHandler(int signum) {
 	finalize();
-
-	double mem_p_sec = (double)memoryaccess_number / (double)system->clock.s;
-	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
-	double avg_m = (double)total_access_time / (double)memoryaccess_number;
-	avg_m /= 1000000.0;
-
-	log("- Master PID: %d\n", getpid());
-	log("- Number of forking during this execution: %d\n", fork_number);
-	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
-	log("- Number of memory accesses: %d\n", memoryaccess_number);
-	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
-	log("- Number of page faults: %d\n", pagefault_number);
-	log("- Number of page faults per memory access: %f pagefault/access\n", pg_f_p_mem);
-	log("- Average memory access speed: %f ms/n\n", avg_m);
-	log("- Total memory access time: %f ms\n", (double)total_access_time / 1000000.0);
-	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", "output.log");
-
-	cleanUp();
-
 	exit(EXIT_SUCCESS);
 }
 
@@ -500,11 +486,26 @@ void timer(int duration) {
 }
 
 void finalize() {
-	fprintf(stderr, "\nLimitation has reached! Invoking termination...\n");
+	double mem_p_sec = (double)memoryaccess_number / (double)system->clock.s;
+	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
+	double avg_m = (double)total_access_time / (double)memoryaccess_number;
+	avg_m /= 1000000.0;
+
+	log("- Master PID: %d\n", getpid());
+	log("- Number of forking during this execution: %d\n", fork_number);
+	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
+	log("- Number of memory accesses: %d\n", memoryaccess_number);
+	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
+	log("- Number of page faults: %d\n", pagefault_number);
+	log("- Number of page faults per memory access: %f pagefault/access\n", pg_f_p_mem);
+	log("- Average memory access speed: %f ms/n\n", avg_m);
+	log("- Total memory access time: %f ms\n", (double)total_access_time / 1000000.0);
+	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", "output.log");
+
+	freeIPC();
+
 	kill(0, SIGUSR1);
-	pid_t p = 0;
-	while (p >= 0)
-		p = waitpid(-1, NULL, WNOHANG);
+	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
 
 void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type)
@@ -526,20 +527,14 @@ void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *
 	}
 }
 
-void semLock(const int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = -1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+void semLock(const int index) {
+	struct sembuf sop = { index, -1, 0 };
+	if (semop(semid, &sop, 1) == -1) crash("semop");
 }
 
-void semUnlock(const int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = 1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+void semUnlock(const int index) {
+	struct sembuf sop = { index, 1, 0 };
+	if (semop(semid, &sop, 1) == -1) crash("semop");
 }
 
 int advanceClock(int increment)
@@ -547,13 +542,13 @@ int advanceClock(int increment)
 	semLock(0);
 	int nano = (increment > 0) ? increment : rand() % 1000 + 1;
 
-	forkclock.ns += nano;
-	shmclock_shmptr->ns += nano;
+	nextSpawn.ns += nano;
+	system->clock.ns += nano;
 
-	while (shmclock_shmptr->ns >= 1000000000)
+	while (system->clock.ns >= 1000000000)
 	{
-		shmclock_shmptr->s++;
-		shmclock_shmptr->ns = abs(1000000000 - shmclock_shmptr->ns);
+		system->clock.s++;
+		system->clock.ns = abs(1000000000 - system->clock.ns);
 	}
 
 	semUnlock(0);

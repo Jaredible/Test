@@ -29,12 +29,10 @@ static char *exe_name;
 static int exe_index;
 static key_t key;
 
-static int mqueueid = -1;
-static Message user_message;
-static int shmclock_shmid = -1;
-static Time *shmclock_shmptr = NULL;
-static int pcbt_shmid = -1;
-static PCB *pcbt_shmptr = NULL;
+static int shmid = -1;
+static int msqid = -1;
+static System *system = NULL;
+static Message message;
 
 void registerSignalHandlers();
 void signalHandler(int);
@@ -57,7 +55,7 @@ int main(int argc, char *argv[]) {
 	unsigned int address = 0;
 	unsigned int request_page = 0;
 	while (true) {
-		msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
+		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
 		if (memory_reference <= 1000) {
 			if (m == 0)
@@ -105,11 +103,11 @@ int main(int argc, char *argv[]) {
 			memory_reference++;
 		} else is_terminate = true;
 
-		user_message.type = 1;
-		user_message.flag = (is_terminate) ? 0 : 1;
-		user_message.address = address;
-		user_message.page = request_page;
-		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
+		message.type = 1;
+		message.flag = (is_terminate) ? 0 : 1;
+		message.address = address;
+		message.page = request_page;
+		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 
 		if (is_terminate) break;
 	}
@@ -143,53 +141,15 @@ void signalHandler(int sig)
 	exit(2);
 }
 
-void initIPC()
-{
-	/* =====Getting [message queue] shared memory===== */
-	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, 0600);
-	if (mqueueid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not get [message queue] shared memory! Exiting...\n", exe_name);
-		exit(EXIT_FAILURE);
-	}
+void initIPC() {
+	key_t key;
 
-	//--------------------------------------------------
-	/* =====Getting [shmclock] shared memory===== */
-	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(Time), 0600);
-	if (shmclock_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not get [shmclock] shared memory! Exiting...\n", exe_name);
-		exit(EXIT_FAILURE);
-	}
+	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((shmid = shmget(key, sizeof(System), 0)) == -1) crash("shmget");
+	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
-	//Attaching shared memory and check if can attach it.
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if (shmclock_shmptr == (void *)(-1))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
-		exit(EXIT_FAILURE);
-	}
-
-	//--------------------------------------------------
-	/* =====Getting process control block table===== */
-	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
-	pcbt_shmid = shmget(key, process_table_size, 0600);
-	if (pcbt_shmid < 0)
-	{
-		fprintf(stderr, "%s ERROR: could not get [pcbt] shared memory! Exiting...\n", exe_name);
-		exit(EXIT_FAILURE);
-	}
-
-	//Attaching shared memory and check if can attach it.
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if (pcbt_shmptr == (void *)(-1))
-	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
-		exit(EXIT_FAILURE);
-	}
+	if ((key = ftok(".", 1)) == -1) crash("ftok");
+	if ((msqid = msgget(key, 0)) == -1) crash("msgget");
 }
 
 void init(int argc, char **argv) {
