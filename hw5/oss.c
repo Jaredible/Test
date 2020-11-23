@@ -196,7 +196,7 @@ void handleProcesses() {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			message.type = system->ptable[index].pid;
-			message.safe = safe(system->ptable, queue, index);
+			message.safe = safe(queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
 		}
 
