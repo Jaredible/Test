@@ -1,32 +1,30 @@
-CC         = gcc
-CFLAGS     = -Wall -g
+CC = gcc
+CFLAGS = -Wall -g
 
-STANDARD   = shared.h
-SRC        = queue.h list.h
-MASTER_SRC = oss.c
-USER_SRC   = user.c
+HEADERS = list.h queue.h shared.h
 
-OBJ        = queue.o list.o
-MASTER_OBJ = $(MASTER_SRC:.c=.o)
-USER_OBJ   = $(USER_SRC:.c=.o)
+OSS = oss
+OSS_SRC = oss.c
+OSS_OBJ = $(OSS_SRC:.c=.o) list.o queue.o
 
-MASTER     = oss
-USER       = user
+USER = user
+USER_SRC = user.c
+USER_OBJ = $(USER_SRC:.c=.o)
 
-OUTPUT    = $(MASTER) $(USER)
+OUTPUT = $(OSS) $(USER)
+
+.PHONY: all clean
+
 all: $(OUTPUT)
 
-
-%.o: %.c $(STANDARD) $(SRC)
+%.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(MASTER): $(MASTER_OBJ) $(OBJ)
-	$(CC) $(CFLAGS) $(MASTER_OBJ) $(OBJ) -o $(MASTER)
+$(OSS): $(OSS_OBJ)
+	$(CC) $(CFLAGS) $(OSS_OBJ) -o $(OSS)
 
 $(USER): $(USER_OBJ)
 	$(CC) $(CFLAGS) $(USER_OBJ) -o $(USER)
 
-
-.PHONY: clean
 clean:
-	/bin/rm -f $(OUTPUT) *.o *.dat
+	/bin/rm -f $(OUTPUT) *.o *.log
