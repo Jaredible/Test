@@ -11,11 +11,17 @@
 typedef unsigned int uint;
 
 #define BUFFER_LENGTH 4096
-#define MAX_FILE_LINE 100000
 
-#define TERMINATION_TIME 20
-#define MAX_PROCESS 18
-#define TOTAL_PROCESS 100
+#define KEY_PATHNAME "."
+#define KEY_ID_CLOCK 0
+#define KEY_ID_RESOURCE_DESCRIPTOR 1
+#define KEY_ID_MESSAGE_QUEUE 2
+#define PERMS (S_IRUSR | S_IWUSR)
+
+#define PATH_LOG "./output.log"
+#define TIMEOUT 5
+#define PROCESSES_MAX 18
+#define PROCESSES_TOTAL 100
 
 #define PROCESS_SIZE 32000
 #define PAGE_SIZE 1000

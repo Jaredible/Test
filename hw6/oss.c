@@ -28,10 +28,11 @@
 
 #define log _log
 
+static pid_t pids[PROCESSES_MAX];
+
 static char *programName;
 
-static char *exe_name;
-static int scheme_choice = 0;
+static int scheme = 0;
 static key_t key;
 static Queue *queue;
 static Time forkclock;
@@ -47,7 +48,7 @@ static PCB *pcbt_shmptr = NULL;
 
 static int fork_number = 0;
 static pid_t pid = -1;
-static unsigned char bitmap[MAX_PROCESS];
+static unsigned char bitmap[PROCESSES_MAX];
 
 static int memoryaccess_number = 0;
 static int pagefault_number = 0;
@@ -70,45 +71,42 @@ void semLock(const int);
 void semUnlock(const int);
 int advanceClock(int);
 
-void initPCBT(PCB *pcbt);
-void initPCB(PCB *pcb, int index, pid_t pid);
+void initPCBT(PCB*);
+void initPCB(PCB*, int, pid_t);
 
-int main(int argc, char *argv[])
-{
-	exe_name = argv[0];
-	srand(getpid());
+int main(int argc, char *argv[]) {
+	init(argc, argv);
 
-	int opt;
-	while ((opt = getopt(argc, argv, "hm:")) != -1)
-	{
-		switch (opt)
-		{
-		case 'h':
-			printf("NAME:\n");
-			printf("	%s - simulate the memory management module and compare LRU and FIFO page replacement algorithms, both with dirty-bit optimization.\n", exe_name);
-			printf("\nUSAGE:\n");
-			printf("	%s [-h] [-l logfile] [-a choice].\n", exe_name);
-			printf("\nDESCRIPTION:\n");
-			printf("	-h           : print the help page and exit.\n");
-			printf("	-l filename  : the log file used (default is fifolog.dat).\n");
-			printf("	-d           : turn on debug mode (default is off). Beware, result will be different and inconsistent.\n");
-			printf("	-t           : display result in the terminal as well (default is off).\n");
-			printf("	-a number    : 0 is using FIFO algorithm, while 1 is using LRU algorithm (default is 0).\n");
-			exit(EXIT_SUCCESS);
-		case 'm':
-			scheme_choice = atoi(optarg);
-			scheme_choice = (scheme_choice < 0 || scheme_choice > 1) ? 0 : scheme_choice;
-			break;
-		default:
-			fprintf(stderr, "%s: please use \"-h\" option for more info.\n", exe_name);
-			exit(EXIT_FAILURE);
+	srand(time(NULL) ^ getpid());
+
+	bool ok = true;
+
+	while (true) {
+		int c = getopt(argc, argv, "hm:");
+		if (c == -1) break;
+		switch (c) {
+			case 'h':
+				usage(EXIT_SUCCESS);
+			case 'm':
+				scheme = atoi(optarg);
+				break;
+			default:
+				ok = false;
 		}
 	}
 
 	if (optind < argc) {
-		fprintf(stderr, "%s ERROR: extra arguments was given! Please use \"-h\" option for more info.\n", exe_name);
-		exit(EXIT_FAILURE);
+		char buf[BUFFER_LENGTH];
+		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
+		while (optind < argc) {
+			strncat(buf, argv[optind++], BUFFER_LENGTH);
+			if (optind < argc) strncat(buf, ", ", BUFFER_LENGTH);
+		}
+		error(buf);
+		ok = false;
 	}
+	
+	if (!ok) usage(EXIT_FAILURE);
 
 	memset(bitmap, '\0', sizeof(bitmap));
 
@@ -116,7 +114,7 @@ int main(int argc, char *argv[])
 	mqueueid = msgget(key, IPC_CREAT | 0600);
 	if (mqueueid < 0)
 	{
-		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -125,7 +123,7 @@ int main(int argc, char *argv[])
 	shmclock_shmid = shmget(key, sizeof(Time), IPC_CREAT | 0600);
 	if (shmclock_shmid < 0)
 	{
-		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -133,7 +131,7 @@ int main(int argc, char *argv[])
 	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
 	if (shmclock_shmptr == (void *)(-1))
 	{
-		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -147,7 +145,7 @@ int main(int argc, char *argv[])
 	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
 	if (semid == -1)
 	{
-		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -155,11 +153,11 @@ int main(int argc, char *argv[])
 	semctl(semid, 0, SETVAL, 1);
 
 	key = ftok("./oss.c", 4);
-	size_t process_table_size = sizeof(PCB) * MAX_PROCESS;
+	size_t process_table_size = sizeof(PCB) * PROCESSES_MAX;
 	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
 	if (pcbt_shmid < 0)
 	{
-		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -167,7 +165,7 @@ int main(int argc, char *argv[])
 	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
 	if (pcbt_shmptr == (void *)(-1))
 	{
-		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
+		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", programName);
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
@@ -178,7 +176,7 @@ int main(int argc, char *argv[])
 	reference_string = list_create();
 	lru_stack = list_create();
 
-	masterInterrupt(TERMINATION_TIME);
+	masterInterrupt(TIMEOUT);
 
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
@@ -198,7 +196,7 @@ int main(int argc, char *argv[])
 			int count_process = 0;
 			while (1)
 			{
-				last_index = (last_index + 1) % MAX_PROCESS;
+				last_index = (last_index + 1) % PROCESSES_MAX;
 				uint32_t bit = bitmap[last_index / 8] & (1 << (last_index % 8));
 				if (bit == 0)
 				{
@@ -206,7 +204,7 @@ int main(int argc, char *argv[])
 					break;
 				}
 
-				if (count_process >= MAX_PROCESS - 1)
+				if (count_process >= PROCESSES_MAX - 1)
 				{
 					break;
 				}
@@ -219,7 +217,7 @@ int main(int argc, char *argv[])
 
 				if (pid == -1)
 				{
-					fprintf(stderr, "%s (Master) ERROR: %s\n", exe_name, strerror(errno));
+					fprintf(stderr, "%s (Master) ERROR: %s\n", programName, strerror(errno));
 					finalize();
 					cleanUp();
 					exit(0);
@@ -232,11 +230,11 @@ int main(int argc, char *argv[])
 					char arg0[BUFFER_LENGTH];
 					char arg1[BUFFER_LENGTH];
 					sprintf(arg0, "%d", last_index);
-					sprintf(arg1, "%d", scheme_choice);
+					sprintf(arg1, "%d", scheme);
 					int exect_status = execl("./user", "user", arg0, arg1, (char*) NULL);
 					if (exect_status == -1)
 					{
-						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", exe_name, last_index);
+						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", programName, last_index);
 					}
 
 					finalize();
@@ -251,7 +249,7 @@ int main(int argc, char *argv[])
 
 					queue_push(queue, last_index);
 
-					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name,
+					log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
 							   pcbt_shmptr[last_index].spid, pcbt_shmptr[last_index].pid, shmclock_shmptr->s, shmclock_shmptr->ns);
 				}
 			}
@@ -280,7 +278,7 @@ int main(int argc, char *argv[])
 			if (master_message.flag == 0)
 			{
 				log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						   exe_name, master_message.spid, master_message.pid, shmclock_shmptr->s, shmclock_shmptr->ns);
+						   programName, master_message.spid, master_message.pid, shmclock_shmptr->s, shmclock_shmptr->ns);
 
 				int i;
 				for (i = 0; i < MAX_PAGE; i++)
@@ -303,14 +301,14 @@ int main(int argc, char *argv[])
 				if (pcbt_shmptr[index].ptable[request_page].protection == 0)
 				{
 					log("%s: process (%d) [%d] requesting read of address (%d) [%d] at time %d:%d\n",
-							   exe_name, master_message.spid, master_message.pid,
+							   programName, master_message.spid, master_message.pid,
 							   address, request_page,
 							   shmclock_shmptr->s, shmclock_shmptr->ns);
 				}
 				else
 				{
 					log("%s: process (%d) [%d] requesting write of address (%d) [%d] at time %d:%d\n",
-							   exe_name, master_message.spid, master_message.pid,
+							   programName, master_message.spid, master_message.pid,
 							   address, request_page,
 							   shmclock_shmptr->s, shmclock_shmptr->ns);
 				}
@@ -319,7 +317,7 @@ int main(int argc, char *argv[])
 				if (pcbt_shmptr[index].ptable[request_page].valid == 0)
 				{
 					log("%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
-							   exe_name, address, request_page);
+							   programName, address, request_page);
 					pagefault_number++;
 
 					total_access_time += advanceClock(14000000);
@@ -352,7 +350,7 @@ int main(int argc, char *argv[])
 
 						list_add(reference_string, index, request_page, last_frame);
 						log("%s: allocated frame [%d] to PID (%d) [%d]\n",
-								   exe_name, last_frame, master_message.spid, master_message.pid);
+								   programName, last_frame, master_message.spid, master_message.pid);
 
 						list_remove(lru_stack, index, request_page, last_frame);
 						list_add(lru_stack, index, request_page, last_frame);
@@ -360,7 +358,7 @@ int main(int argc, char *argv[])
 						if (pcbt_shmptr[index].ptable[request_page].protection == 0)
 						{
 							log("%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
-									   exe_name, address, request_page,
+									   programName, address, request_page,
 									   pcbt_shmptr[index].ptable[request_page].frame,
 									   master_message.spid, master_message.pid,
 									   shmclock_shmptr->s, shmclock_shmptr->ns);
@@ -370,7 +368,7 @@ int main(int argc, char *argv[])
 						else
 						{
 							log("%s: address (%d) [%d] in frame (%d), writing data to frame at time %d:%d\n",
-									   exe_name, address, request_page,
+									   programName, address, request_page,
 									   pcbt_shmptr[index].ptable[request_page].frame,
 									   shmclock_shmptr->s, shmclock_shmptr->ns);
 
@@ -378,7 +376,7 @@ int main(int argc, char *argv[])
 						}
 					} else {
 						log("%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
-								   exe_name, address, request_page);
+								   programName, address, request_page);
 
 						unsigned int lru_index = lru_stack->head->index;
 						unsigned int lru_page = lru_stack->head->page;
@@ -387,7 +385,7 @@ int main(int argc, char *argv[])
 
 						if (pcbt_shmptr[lru_index].ptable[lru_page].dirty == 1) {
 							log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
-									   exe_name, lru_address, lru_page);
+									   programName, lru_address, lru_page);
 						}
 
 						pcbt_shmptr[lru_index].ptable[lru_page].frame = -1;
@@ -405,9 +403,9 @@ int main(int argc, char *argv[])
 
 						if (pcbt_shmptr[index].ptable[request_page].protection == 1)
 						{
-							log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", exe_name, last_frame);
+							log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
 							log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n",
-									   exe_name, master_message.spid, master_message.pid, address, request_page);
+									   programName, master_message.spid, master_message.pid, address, request_page);
 							pcbt_shmptr[index].ptable[request_page].dirty = 1;
 						}
 					}
@@ -418,13 +416,13 @@ int main(int argc, char *argv[])
 
 					if (pcbt_shmptr[index].ptable[request_page].protection == 0) {
 						log("%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
-								   exe_name, address, request_page,
+								   programName, address, request_page,
 								   pcbt_shmptr[index].ptable[request_page].frame,
 								   master_message.spid, master_message.pid,
 								   shmclock_shmptr->s, shmclock_shmptr->ns);
 					} else {
 						log("%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
-								   exe_name, address, request_page,
+								   programName, address, request_page,
 								   pcbt_shmptr[index].ptable[request_page].frame,
 								   shmclock_shmptr->s, shmclock_shmptr->ns);
 					}
@@ -459,7 +457,7 @@ int main(int argc, char *argv[])
 			bitmap[return_index / 8] &= ~(1 << (return_index % 8));
 		}
 
-		if (fork_number >= TOTAL_PROCESS) {
+		if (fork_number >= PROCESSES_TOTAL) {
 			timer(0);
 			masterHandler(0);
 		}
@@ -504,6 +502,7 @@ void masterInterrupt(int seconds) {
 
 	signal(SIGSEGV, segHandler);
 }
+
 void masterHandler(int signum) {
 	finalize();
 
@@ -527,6 +526,7 @@ void masterHandler(int signum) {
 
 	exit(EXIT_SUCCESS);
 }
+
 void segHandler(int signum) {
 	fprintf(stderr, "Segmentation Fault\n");
 	masterHandler(0);
@@ -537,14 +537,13 @@ void exitHandler(int signum) {
 	exit(EXIT_SUCCESS);
 }
 
-void timer(int seconds) {
-	struct itimerval value;
-	value.it_value.tv_sec = seconds;
-	value.it_value.tv_usec = 0;
-	value.it_interval.tv_sec = 0;
-	value.it_interval.tv_usec = 0;
-
-	if (setitimer(ITIMER_REAL, &value, NULL) == -1) perror("ERROR");
+void timer(int duration) {
+	struct itimerval val;
+	val.it_value.tv_sec = duration;
+	val.it_value.tv_usec = 0;
+	val.it_interval.tv_sec = 0;
+	val.it_interval.tv_usec = 0;
+	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
 }
 
 void finalize() {
@@ -581,14 +580,14 @@ void cleanUp()
 		msgctl(mqueueid, IPC_RMID, NULL);
 	}
 
-	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", exe_name, "Master");
+	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", programName, "Master");
 
 	if (semid > 0)
 	{
 		semctl(semid, 0, IPC_RMID);
 	}
 
-	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", exe_name, "Master");
+	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", programName, "Master");
 }
 
 void semLock(const int sem_index)
@@ -628,7 +627,7 @@ int advanceClock(int increment)
 void initPCBT(PCB *pcbt)
 {
 	int i, j;
-	for (i = 0; i < MAX_PROCESS; i++)
+	for (i = 0; i < PROCESSES_MAX; i++)
 	{
 		pcbt[i].spid = -1;
 		pcbt[i].pid = -1;
@@ -663,4 +662,42 @@ void init(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IONBF, 0);
 	setvbuf(stderr, NULL, _IONBF, 0);
+}
+
+void usage(int status) {
+	if (status != EXIT_SUCCESS) fprintf(stderr, "Try '%s -h' for more information\n", programName);
+	else {
+		printf("Usage: %s [-v]\n", programName);
+		printf("    -v : verbose on\n");
+	}
+	exit(status);
+}
+
+void crash(char *msg) {
+	char buf[BUFFER_LENGTH];
+	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
+	perror(buf);
+	
+	freeIPC();
+	
+	exit(EXIT_FAILURE);
+}
+
+void error(char *fmt, ...) {
+	char buf[BUFFER_LENGTH];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
+	va_end(args);
+	
+	fprintf(stderr, "%s: %s\n", programName, buf);
+	
+	freeIPC();
+}
+
+int findAvailablePID() {
+	int i;
+	for (i = 0; i < PROCESSES_MAX; i++)
+		if (pids[i] == 0) return i;
+	return -1;
 }
