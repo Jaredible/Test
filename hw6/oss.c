@@ -1,4 +1,7 @@
-
+/*
+ * oss.c November 25, 2020
+ * Jared Diehl (jmddnb@umsystem.edu)
+ */
 
 #include <stdlib.h>	 //exit()
 #include <stdio.h>	 //printf()

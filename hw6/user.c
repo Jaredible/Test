@@ -1,24 +1,30 @@
-#include <stdlib.h>	 //exit()
-#include <stdio.h>	 //printf()
-#include <stdbool.h> //bool variable
-#include <stdint.h>	 //for uint32_t
-#include <string.h>	 //str function
-#include <unistd.h>	 //standard symbolic constants and types
+/*
+ * user.c November 25, 2020
+ * Jared Diehl (jmddnb@umsystem.edu)
+ */
 
-#include <stdarg.h>	   //va macro
-#include <errno.h>	   //errno variable
-#include <signal.h>	   //signal handling
-#include <sys/ipc.h>   //IPC flags
-#include <sys/msg.h>   //message queue stuff
-#include <sys/shm.h>   //shared memory stuff
-#include <sys/sem.h>   //semaphore stuff, semget()
-#include <sys/time.h>  //setitimer()
-#include <sys/types.h> //contains a number of basic derived types
-#include <sys/wait.h>  //waitpid()
-#include <time.h>	   //time()
-#include <math.h>	   //ceil(), floor()
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdarg.h>
+#include <errno.h>
+#include <signal.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <math.h>
 
 #include "shared.h"
+
+static char *programName;
 
 static char *exe_name;
 static int exe_index;
@@ -28,72 +34,19 @@ static int mqueueid = -1;
 static Message user_message;
 static int shmclock_shmid = -1;
 static Time *shmclock_shmptr = NULL;
-static int semid = -1;
-static struct sembuf sema_operation;
 static int pcbt_shmid = -1;
 static PCB *pcbt_shmptr = NULL;
 
-void processInterrupt();
-void processHandler(int signum);
-void resumeHandler(int signum);
-void discardShm(void *shmaddr, char *shm_name, char *exe_name, char *process_type);
-void cleanUp();
-void semaLock(int sem_index);
-void semaRelease(int sem_index);
-void getSharedMemory();
+void registerSignalHandlers();
+void signalHandler(int);
+void initIPC();
 
 #define SIZE 32
-
-void test()
-{
-	srand(time(NULL) ^ getpid());
-
-	double weights[SIZE];
-
-	int i, j;
-
-	for (i = 0; i < SIZE; i++)
-	{
-		weights[i] = 0;
-	}
-
-	double sum;
-	for (i = 0; i < SIZE; i++)
-	{
-		sum = 0;
-		for (j = 0; j <= i; j++)
-		{
-			sum += 1 / (double)(j + 1);
-		}
-		weights[i] = sum;
-	}
-
-	for (i = 0; i < SIZE; i++)
-	{
-		printf("%f\n", weights[i]);
-	}
-
-	int r = rand() % ((int)weights[SIZE - 1] + 1);
-
-	int page;
-	for (i = 0; i < SIZE; i++)
-	{
-		if (weights[i] > r)
-		{
-			page = i;
-			break;
-		}
-	}
-
-	int offset = (page << 10) + (rand() % 1024);
-
-	printf("page: %d, offset: %d\n", page, offset);
-}
 
 int main(int argc, char *argv[])
 {
 	/* =====Signal Handling====== */
-	processInterrupt();
+	registerSignalHandlers();
 
 	//--------------------------------------------------
 	/* =====Initialize resources===== */
@@ -104,7 +57,7 @@ int main(int argc, char *argv[])
 
 	//--------------------------------------------------
 	/* =====Getting shared memory===== */
-	getSharedMemory();
+	initIPC();
 
 	//--------------------------------------------------
 	bool is_terminate = false;
@@ -184,77 +137,39 @@ int main(int argc, char *argv[])
 		{
 			break;
 		}
-	} //END OF: Infinite while loop #1
+	}
 
 	cleanUp();
 	exit(exe_index);
 }
 
-void processInterrupt()
+void registerSignalHandlers()
 {
-	struct sigaction sa1;
-	sigemptyset(&sa1.sa_mask);
-	sa1.sa_handler = &processHandler;
-	sa1.sa_flags = SA_RESTART;
-	if (sigaction(SIGUSR1, &sa1, NULL) == -1)
+	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGUSR1, &sa, NULL) == -1)
 	{
 		perror("ERROR");
 	}
 
 	struct sigaction sa2;
 	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &processHandler;
+	sa2.sa_handler = &signalHandler;
 	sa2.sa_flags = SA_RESTART;
 	if (sigaction(SIGINT, &sa2, NULL) == -1)
 	{
 		perror("ERROR");
 	}
 }
-void processHandler(int signum)
+void signalHandler(int sig)
 {
 	printf("%d: Terminated!\n", getpid());
-	cleanUp();
 	exit(2);
 }
 
-void discardShm(void *shmaddr, char *shm_name, char *exe_name, char *process_type)
-{
-	//Detaching...
-	if (shmaddr != NULL)
-	{
-		if ((shmdt(shmaddr)) << 0)
-		{
-			fprintf(stderr, "%s (%s) ERROR: could not detach [%s] shared memory!\n", exe_name, process_type, shm_name);
-		}
-	}
-}
-
-void cleanUp()
-{
-	//Release [shmclock] shared memory
-	discardShm(shmclock_shmptr, "shmclock", exe_name, "Child");
-
-	//Release [pcbt] shared memory
-	discardShm(pcbt_shmptr, "pcbt", exe_name, "Child");
-}
-
-void semaLock(int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = -1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
-}
-
-void semaRelease(int sem_index)
-{
-	sema_operation.sem_num = sem_index;
-	sema_operation.sem_op = 1;
-	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
-}
-
-void getSharedMemory()
+void initIPC()
 {
 	/* =====Getting [message queue] shared memory===== */
 	key = ftok("./oss.c", 1);
@@ -287,17 +202,6 @@ void getSharedMemory()
 	}
 
 	//--------------------------------------------------
-	/* =====Getting semaphore===== */
-	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, 0600);
-	if (semid == -1)
-	{
-		fprintf(stderr, "%s ERROR: fail to attach a private semaphore! Exiting...\n", exe_name);
-		cleanUp();
-		exit(EXIT_FAILURE);
-	}
-
-	//--------------------------------------------------
 	/* =====Getting process control block table===== */
 	key = ftok("./oss.c", 4);
 	size_t process_table_size = sizeof(PCB) * MAX_PROCESS;
@@ -317,4 +221,19 @@ void getSharedMemory()
 		cleanUp();
 		exit(EXIT_FAILURE);
 	}
+}
+
+void init(int argc, char **argv) {
+	programName = argv[0];
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+}
+
+void crash(char *msg) {
+	char buf[BUFFER_LENGTH];
+	snprintf(buf, BUFFER_LENGTH, "%s: %s", programName, msg);
+	perror(buf);
+	
+	exit(EXIT_FAILURE);
 }
