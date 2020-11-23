@@ -182,6 +182,10 @@ int main(int argc, char *argv[])
 
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
+	FILE *fp;
+	if ((fp = fopen("output.log", "w")) == NULL) crash("fopen");
+	if (fclose(fp) == EOF) crash("fclose");
+
 	int last_index = -1;
 	while (1)
 	{
