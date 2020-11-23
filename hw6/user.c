@@ -139,7 +139,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	cleanUp();
 	exit(exe_index);
 }
 
