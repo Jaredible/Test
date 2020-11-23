@@ -271,10 +271,10 @@ int main(int argc, char *argv[])
 		{
 			incShmclock(0);
 
-			int c_index = next->index;
-			master_message.type = pcbt_shmptr[c_index].pid;
-			master_message.spid = c_index;
-			master_message.pid = pcbt_shmptr[c_index].pid;
+			int index = next->index;
+			master_message.type = pcbt_shmptr[index].pid;
+			master_message.spid = index;
+			master_message.pid = pcbt_shmptr[index].pid;
 			msgsnd(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 0);
 
 			msgrcv(mqueueid, &master_message, (sizeof(Message) - sizeof(long)), 1, 0);
@@ -289,10 +289,10 @@ int main(int argc, char *argv[])
 				int i;
 				for (i = 0; i < MAX_PAGE; i++)
 				{
-					if (pcbt_shmptr[c_index].ptable[i].frame != -1)
+					if (pcbt_shmptr[index].ptable[i].frame != -1)
 					{
-						int frame = pcbt_shmptr[c_index].ptable[i].frame;
-						list_remove(reference_string, c_index, i, frame);
+						int frame = pcbt_shmptr[index].ptable[i].frame;
+						list_remove(reference_string, index, i, frame);
 						main_memory[frame / 8] &= ~(1 << (frame % 8));
 					}
 				}
@@ -300,11 +300,11 @@ int main(int argc, char *argv[])
 			else
 			{
 				total_access_time += incShmclock(0);
-				queue_push(temp, c_index);
+				queue_push(temp, index);
 
 				unsigned int address = master_message.address;
 				unsigned int request_page = master_message.page;
-				if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
+				if (pcbt_shmptr[index].ptable[request_page].protection == 0)
 				{
 					log(fpw, "%s: process (%d) [%d] requesting read of address (%d) [%d] at time %d:%d\n",
 							   exe_name, master_message.spid, master_message.pid,
@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
 				}
 				memoryaccess_number++;
 
-				if (pcbt_shmptr[c_index].ptable[request_page].valid == 0)
+				if (pcbt_shmptr[index].ptable[request_page].valid == 0)
 				{
 					log(fpw, "%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
 							   exe_name, address, request_page);
@@ -349,36 +349,36 @@ int main(int argc, char *argv[])
 
 					if (is_memory_open == true)
 					{
-						pcbt_shmptr[c_index].ptable[request_page].frame = last_frame;
-						pcbt_shmptr[c_index].ptable[request_page].valid = 1;
+						pcbt_shmptr[index].ptable[request_page].frame = last_frame;
+						pcbt_shmptr[index].ptable[request_page].valid = 1;
 
 						main_memory[last_frame / 8] |= (1 << (last_frame % 8));
 
-						list_add(reference_string, c_index, request_page, last_frame);
+						list_add(reference_string, index, request_page, last_frame);
 						log(fpw, "%s: allocated frame [%d] to PID (%d) [%d]\n",
 								   exe_name, last_frame, master_message.spid, master_message.pid);
 
-						list_remove(lru_stack, c_index, request_page, last_frame);
-						list_add(lru_stack, c_index, request_page, last_frame);
+						list_remove(lru_stack, index, request_page, last_frame);
+						list_add(lru_stack, index, request_page, last_frame);
 
-						if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
+						if (pcbt_shmptr[index].ptable[request_page].protection == 0)
 						{
 							log(fpw, "%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
 									   exe_name, address, request_page,
-									   pcbt_shmptr[c_index].ptable[request_page].frame,
+									   pcbt_shmptr[index].ptable[request_page].frame,
 									   master_message.spid, master_message.pid,
 									   shmclock_shmptr->s, shmclock_shmptr->ns);
 
-							pcbt_shmptr[c_index].ptable[request_page].dirty = 0;
+							pcbt_shmptr[index].ptable[request_page].dirty = 0;
 						}
 						else
 						{
 							log(fpw, "%s: address (%d) [%d] in frame (%d), writing data to frame at time %d:%d\n",
 									   exe_name, address, request_page,
-									   pcbt_shmptr[c_index].ptable[request_page].frame,
+									   pcbt_shmptr[index].ptable[request_page].frame,
 									   shmclock_shmptr->s, shmclock_shmptr->ns);
 
-							pcbt_shmptr[c_index].ptable[request_page].dirty = 1;
+							pcbt_shmptr[index].ptable[request_page].dirty = 1;
 						}
 					}
 					else
@@ -401,35 +401,35 @@ int main(int argc, char *argv[])
 						pcbt_shmptr[lru_index].ptable[lru_page].dirty = 0;
 						pcbt_shmptr[lru_index].ptable[lru_page].valid = 0;
 
-						pcbt_shmptr[c_index].ptable[request_page].frame = lru_frame;
-						pcbt_shmptr[c_index].ptable[request_page].dirty = 0;
-						pcbt_shmptr[c_index].ptable[request_page].valid = 1;
+						pcbt_shmptr[index].ptable[request_page].frame = lru_frame;
+						pcbt_shmptr[index].ptable[request_page].dirty = 0;
+						pcbt_shmptr[index].ptable[request_page].valid = 1;
 
 						list_remove(lru_stack, lru_index, lru_page, lru_frame);
 						list_remove(reference_string, lru_index, lru_page, lru_frame);
-						list_add(lru_stack, c_index, request_page, lru_frame);
-						list_add(reference_string, c_index, request_page, lru_frame);
+						list_add(lru_stack, index, request_page, lru_frame);
+						list_add(reference_string, index, request_page, lru_frame);
 
-						if (pcbt_shmptr[c_index].ptable[request_page].protection == 1)
+						if (pcbt_shmptr[index].ptable[request_page].protection == 1)
 						{
 							log(fpw, "%s: dirty bit of frame (%d) set, adding additional time to the clock\n", exe_name, last_frame);
 							log(fpw, "%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n",
 									   exe_name, master_message.spid, master_message.pid, address, request_page);
-							pcbt_shmptr[c_index].ptable[request_page].dirty = 1;
+							pcbt_shmptr[index].ptable[request_page].dirty = 1;
 						}
 					}
 				}
 				else
 				{
-					int c_frame = pcbt_shmptr[c_index].ptable[request_page].frame;
-					list_remove(lru_stack, c_index, request_page, c_frame);
-					list_add(lru_stack, c_index, request_page, c_frame);
+					int c_frame = pcbt_shmptr[index].ptable[request_page].frame;
+					list_remove(lru_stack, index, request_page, c_frame);
+					list_add(lru_stack, index, request_page, c_frame);
 
-					if (pcbt_shmptr[c_index].ptable[request_page].protection == 0)
+					if (pcbt_shmptr[index].ptable[request_page].protection == 0)
 					{
 						log(fpw, "%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
 								   exe_name, address, request_page,
-								   pcbt_shmptr[c_index].ptable[request_page].frame,
+								   pcbt_shmptr[index].ptable[request_page].frame,
 								   master_message.spid, master_message.pid,
 								   shmclock_shmptr->s, shmclock_shmptr->ns);
 					}
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
 					{
 						log(fpw, "%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
 								   exe_name, address, request_page,
-								   pcbt_shmptr[c_index].ptable[request_page].frame,
+								   pcbt_shmptr[index].ptable[request_page].frame,
 								   shmclock_shmptr->s, shmclock_shmptr->ns);
 					}
 				}
