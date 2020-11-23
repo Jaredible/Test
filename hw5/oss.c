@@ -508,7 +508,7 @@ void timer(int duration) {
 void initIPC() {
 	key_t key;
 
-	if ((key = ftok(".", 0)) == -1) crash("ftok");
+	if ((key = ftok(KEY_PATHNAME, KEY_ID_SYSTEM)) == -1) crash("ftok");
 	if ((shmid = shmget(key, sizeof(System), IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("shmget");
 	if ((system = (System*) shmat(shmid, NULL, 0)) == (void*) -1) crash("shmat");
 
