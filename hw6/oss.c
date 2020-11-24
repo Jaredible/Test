@@ -31,6 +31,7 @@
 static pid_t pids[PROCESSES_MAX];
 
 static char *programName;
+static volatile bool quit = false;
 
 static int scheme = 0;
 static Queue *queue;
@@ -42,9 +43,9 @@ static int semid = -1;
 static System *system = NULL;
 static Message message;
 
-static int fork_number = 0;
-static pid_t pid = -1;
-static unsigned char bitmap[PROCESSES_MAX];
+static int activeCount = 0;
+static int spawnCount = 0;
+static int exitCount = 0;
 
 static int memoryaccess_number = 0;
 static int pagefault_number = 0;
@@ -55,12 +56,10 @@ static List *reference_string;
 static List *lru_stack;
 
 void log(char*, ...);
-void masterInterrupt(int);
-void masterHandler(int);
-void segHandler(int);
+void registerSignalHandlers();
+void signalHandler(int);
 void timer(int);
 void finalize();
-void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type);
 void semLock(const int);
 void semUnlock(const int);
 int advanceClock(int);
@@ -132,7 +131,7 @@ int main(int argc, char *argv[]) {
 	reference_string = list_create();
 	lru_stack = list_create();
 
-	masterInterrupt(TIMEOUT);
+	registerSignalHandlers();
 
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
@@ -140,31 +139,13 @@ int main(int argc, char *argv[]) {
 	while (1)
 	{
 		int spawn_nano = rand() % 500000000 + 1000000;
-		if (nextSpawn.ns >= spawn_nano)
-		{
+		if (nextSpawn.ns >= spawn_nano) {
 			nextSpawn.ns = 0;
 
-			bool is_bitmap_open = false;
-			int count_process = 0;
-			while (1)
-			{
-				last_index = (last_index + 1) % PROCESSES_MAX;
-				uint32_t bit = bitmap[last_index / 8] & (1 << (last_index % 8));
-				if (bit == 0)
-				{
-					is_bitmap_open = true;
-					break;
-				}
-
-				if (count_process >= PROCESSES_MAX - 1)
-				{
-					break;
-				}
-				count_process++;
-			}
-
-			if (is_bitmap_open == true) {
-				pid = fork();
+			int spid = findAvailablePID();
+			if (spid >= 0) {
+				pid_t pid = fork();
+				pids[spid] = pid;
 				if (pid == -1) crash("fork");
 				else if (pid == 0) {
 					char arg0[BUFFER_LENGTH];
@@ -175,9 +156,7 @@ int main(int argc, char *argv[]) {
 					crash("execl");
 				}
 
-				fork_number++;
-
-				bitmap[last_index / 8] |= (1 << (last_index % 8));
+				spawnCount++;
 
 				initPCB(&system->ptable[last_index], last_index, pid);
 
@@ -382,17 +361,20 @@ int main(int argc, char *argv[]) {
 
 		advanceClock(0);
 
-		int child_status = 0;
-		pid_t child_pid = waitpid(-1, &child_status, WNOHANG);
-
-		if (child_pid > 0) {
-			int return_index = WEXITSTATUS(child_status);
-			bitmap[return_index / 8] &= ~(1 << (return_index % 8));
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
 		}
 
-		if (fork_number >= PROCESSES_TOTAL) {
-			timer(0);
-			masterHandler(0);
+		/* Stop simulating if the last user process has exited */
+		if (quit) {
+			if (exitCount == spawnCount) break;
+		} else {
+			if (exitCount == PROCESSES_TOTAL) break;
 		}
 	}
 
@@ -416,34 +398,41 @@ void log(char *fmt, ...) {
 	if (fclose(fp) == EOF) perror("ERROR");
 }
 
-void masterInterrupt(int seconds) {
-	timer(seconds);
-
+void registerSignalHandlers() {
 	struct sigaction sa;
 
-	sigemptyset(&sa.sa_mask);
-	sa.sa_handler = &masterHandler;
+	/* Set up SIGINT handler */
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
+	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGALRM, &sa, NULL) == -1) perror("ERROR");
+	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
 
-	sigemptyset(&sa.sa_mask);
-	sa.sa_handler = &masterHandler;
+	/* Set up SIGALRM handler */
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
+	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa, NULL) == -1) perror("ERROR");
+	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
 
-	signal(SIGUSR1, SIG_IGN);
+	/* Initialize timout timer */
+	timer(TIMEOUT);
 
-	signal(SIGSEGV, segHandler);
+	signal(SIGSEGV, signalHandler);
 }
 
-void masterHandler(int signum) {
-	finalize();
-	exit(EXIT_SUCCESS);
-}
+void signalHandler(int sig) {
+	if (sig == SIGALRM) quit = true;
+	else {
+		printSummary();
 
-void segHandler(int signum) {
-	fprintf(stderr, "Segmentation Fault\n");
-	masterHandler(0);
+		/* Kill all running user processes */
+		int i;
+		for (i = 0; i < PROCESSES_MAX; i++)
+			if (pids[i] > 0) kill(pids[i], SIGTERM);
+		while (wait(NULL) > 0);
+
+		freeIPC();
+		exit(EXIT_SUCCESS);
+	}
 }
 
 void timer(int duration) {
@@ -462,7 +451,7 @@ void finalize() {
 	avg_m /= 1000000.0;
 
 	log("- Master PID: %d\n", getpid());
-	log("- Number of forking during this execution: %d\n", fork_number);
+	log("- Number of forking during this execution: %d\n", spawnCount);
 	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
 	log("- Number of memory accesses: %d\n", memoryaccess_number);
 	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
@@ -476,25 +465,6 @@ void finalize() {
 
 	kill(0, SIGUSR1);
 	while (waitpid(-1, NULL, WNOHANG) >= 0);
-}
-
-void discardShm(int shmid, void *shmaddr, char *shm_name, char *exe_name, char *process_type)
-{
-	if (shmaddr != NULL)
-	{
-		if ((shmdt(shmaddr)) << 0)
-		{
-			fprintf(stderr, "%s (%s) ERROR: could not detach [%s] shared memory!\n", exe_name, process_type, shm_name);
-		}
-	}
-
-	if (shmid > 0)
-	{
-		if ((shmctl(shmid, IPC_RMID, NULL)) < 0)
-		{
-			fprintf(stderr, "%s (%s) ERROR: could not delete [%s] shared memory! Exiting...\n", exe_name, process_type, shm_name);
-		}
-	}
 }
 
 void semLock(const int index) {
