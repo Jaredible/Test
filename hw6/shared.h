@@ -63,7 +63,7 @@ typedef struct {
 typedef struct {
 	pid_t pid;
 	int spid;
-	PTE ptable[MAX_PAGE];
+	PTE ptable[MAX_PAGES];
 } PCB;
 
 typedef struct {
