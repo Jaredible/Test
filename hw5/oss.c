@@ -342,8 +342,8 @@ bool safe(Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	setMatrix(queue, max, alloc, count);
-	calculateNeed(need, max, alloc, count);
+	setMatrix(queue, &max, &alloc, count);
+	calculateNeed(&need, &max, &alloc, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
