@@ -3,25 +3,25 @@
  * Jared Diehl (jmddnb@umsystem.edu)
  */
 
+#include <errno.h>
 #include <libgen.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <math.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-#include <stdarg.h>
-#include <errno.h>
-#include <signal.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/shm.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "shared.h"
 #include "queue.h"
