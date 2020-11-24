@@ -25,13 +25,13 @@
 #define PROCESSES_MAX 18
 #define PROCESSES_TOTAL 100
 
-#define PROCESS_SIZE 32000
-#define PAGE_SIZE 1000
-#define MAX_PAGE (PROCESS_SIZE / PAGE_SIZE)
+#define PROCESS_SIZE 32 * 1000
+#define PAGE_SIZE 1 * 1000
+#define MAX_PAGES (PROCESS_SIZE / PAGE_SIZE)
 
-#define MEMORY_SIZE 256000
+#define MEMORY_SIZE 256 * 1000
 #define FRAME_SIZE PAGE_SIZE
-#define MAX_FRAME (MEMORY_SIZE / FRAME_SIZE)
+#define MAX_FRAMES (MEMORY_SIZE / FRAME_SIZE)
 
 enum SchemeType { SIMPLE, WEIGHTED };
 
@@ -63,7 +63,7 @@ typedef struct {
 typedef struct {
 	pid_t pid;
 	int spid;
-	PTE ptable[MAX_PAGE];
+	PTE ptable[MAX_PAGES];
 } PCB;
 
 typedef struct {

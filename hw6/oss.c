@@ -77,7 +77,7 @@ static int activeCount = 0;
 static int spawnCount = 0;
 static int exitCount = 0;
 static pid_t pids[PROCESSES_MAX];
-static int memory[MAX_FRAME];
+static int memory[MAX_FRAMES];
 static int memoryAccessCount = 0;
 static int pageFaultCount = 0;
 static unsigned int totalAccessTime = 0;
@@ -155,7 +155,7 @@ void initSystem() {
 	for (i = 0; i < PROCESSES_MAX; i++) {
 		system->ptable[i].pid = -1;
 		system->ptable[i].spid = -1;
-		for (j = 0; j < MAX_PAGE; j++) {
+		for (j = 0; j < MAX_PAGES; j++) {
 			system->ptable[i].ptable[j].frame = -1;
 			system->ptable[i].ptable[j].protection = rand() % 2;
 			system->ptable[i].ptable[j].dirty = 0;
@@ -217,7 +217,7 @@ void handleProcesses() {
 			log("p%d terminated\n", message.spid);
 
 			int i;
-			for (i = 0; i < MAX_PAGE; i++) {
+			for (i = 0; i < MAX_PAGES; i++) {
 				if (system->ptable[spid].ptable[i].frame != -1) {
 					int frame = system->ptable[spid].ptable[i].frame;
 					list_remove(reference, spid, i, frame);
@@ -247,7 +247,7 @@ void handleProcesses() {
 				bool is_memory_open = false;
 				int count_frame = 0;
 				while (true) {
-					last_frame = (last_frame + 1) % MAX_FRAME;
+					last_frame = (last_frame + 1) % MAX_FRAMES;
 					uint32_t frame = memory[last_frame / 8] & (1 << (last_frame % 8));
 					if (frame == 0)
 					{
@@ -255,7 +255,7 @@ void handleProcesses() {
 						break;
 					}
 
-					if (count_frame >= MAX_FRAME - 1)
+					if (count_frame >= MAX_FRAMES - 1)
 					{
 						break;
 					}
@@ -406,7 +406,7 @@ void initPCB(pid_t pid, int spid) {
 	PCB *pcb = &system->ptable[spid];
 	pcb->pid = pid;
 	pcb->spid = spid;
-	for (i = 0; i < MAX_PAGE; i++) {
+	for (i = 0; i < MAX_PAGES; i++) {
 		pcb->ptable[i].frame = -1;
 		pcb->ptable[i].protection = rand() % 2;
 		pcb->ptable[i].dirty = 0;
