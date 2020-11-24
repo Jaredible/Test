@@ -588,15 +588,7 @@ void semUnlock(const int index) {
 }
 
 void printDescriptor() {
-	int i;
-
-	log("Total Resource\n<");
-	for (i = 0; i < RESOURCES_MAX; i++) {
-		log("%2d", descriptor.resource[i]);
-		if (i < RESOURCES_MAX - 1) log(" | ");
-	}
-	log(">\n\n");
-
+	printVector("Total", descriptor->resource);
 	log("Shareable resources: %d\n", descriptor.shared);
 }
 
