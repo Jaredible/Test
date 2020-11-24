@@ -640,10 +640,10 @@ void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int cou
 	log("%s Matrix\n", title);
 
 	for (i = 0; i < count; i++) {
-		log("p%-2d :", next->index);
+		log("p%-2d ", next->index);
 		for (j = 0; j < RESOURCES_MAX; j++) {
 			log("%-2d", matrix[i][j]);
-			if (j < RESOURCES_MAX - 1) log(" | ");
+			if (j < RESOURCES_MAX - 1) log(" ");
 		}
 		log("\n");
 
