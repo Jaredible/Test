@@ -303,28 +303,28 @@ void handleProcesses() {
 					log("%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
 								programName, address, request_page);
 
-					unsigned int lru_index = lru_stack->head->index;
-					unsigned int lru_page = lru_stack->head->page;
-					unsigned int lru_address = lru_page << 10;
-					unsigned int lru_frame = lru_stack->head->frame;
+					unsigned int index = lru_stack->head->index;
+					unsigned int page = lru_stack->head->page;
+					unsigned int address = page << 10;
+					unsigned int frame = lru_stack->head->frame;
 
-					if (system->ptable[lru_index].ptable[lru_page].dirty == 1) {
+					if (system->ptable[index].ptable[page].dirty == 1) {
 						log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
-									programName, lru_address, lru_page);
+									programName, address, page);
 					}
 
-					system->ptable[lru_index].ptable[lru_page].frame = -1;
-					system->ptable[lru_index].ptable[lru_page].dirty = 0;
-					system->ptable[lru_index].ptable[lru_page].valid = 0;
+					system->ptable[index].ptable[page].frame = -1;
+					system->ptable[index].ptable[page].dirty = 0;
+					system->ptable[index].ptable[page].valid = 0;
 
-					system->ptable[spid].ptable[request_page].frame = lru_frame;
+					system->ptable[spid].ptable[request_page].frame = frame;
 					system->ptable[spid].ptable[request_page].dirty = 0;
 					system->ptable[spid].ptable[request_page].valid = 1;
 
-					list_remove(lru_stack, lru_index, lru_page, lru_frame);
-					list_remove(reference_string, lru_index, lru_page, lru_frame);
-					list_add(lru_stack, spid, request_page, lru_frame);
-					list_add(reference_string, spid, request_page, lru_frame);
+					list_remove(lru_stack, index, page, frame);
+					list_remove(reference_string, index, page, frame);
+					list_add(lru_stack, spid, request_page, frame);
+					list_add(reference_string, spid, request_page, frame);
 
 					if (system->ptable[spid].ptable[request_page].protection == 1) {
 						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
