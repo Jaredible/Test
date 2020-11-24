@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
 				queue_push(queue, spid);
 
 				log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-							system->ptable[last_index].spid, system->ptable[last_index].pid, system->clock.s, system->clock.ns);
+							system->ptable[spid].spid, system->ptable[spid].pid, system->clock.s, system->clock.ns);
 			}
 		}
 
