@@ -33,6 +33,8 @@
 #define FRAME_SIZE PAGE_SIZE
 #define MAX_FRAME (MEMORY_SIZE / FRAME_SIZE)
 
+enum SchemeType { SIMPLE, WEIGHTED };
+
 typedef unsigned int uint;
 
 typedef struct {

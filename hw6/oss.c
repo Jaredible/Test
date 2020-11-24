@@ -138,9 +138,7 @@ int main(int argc, char *argv[]) {
 
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
-	int last_index = -1;
-	while (1)
-	{
+	while (true) {
 		int spawn_nano = rand() % 500000000 + 1000000;
 		if (nextSpawn.ns >= spawn_nano) {
 			nextSpawn.ns = 0;
@@ -153,7 +151,7 @@ int main(int argc, char *argv[]) {
 				else if (pid == 0) {
 					char arg0[BUFFER_LENGTH];
 					char arg1[BUFFER_LENGTH];
-					sprintf(arg0, "%d", last_index);
+					sprintf(arg0, "%d", spid);
 					sprintf(arg1, "%d", scheme);
 					execl("./user", "user", arg0, arg1, (char*) NULL);
 					crash("execl");
@@ -425,7 +423,7 @@ void registerSignalHandlers() {
 
 void signalHandler(int sig) {
 	printf("Signal: %d\n", sig);
-	
+
 	if (sig == SIGALRM) quit = true;
 	else {
 		printSummary();

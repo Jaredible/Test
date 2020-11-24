@@ -25,9 +25,6 @@
 
 static char *programName;
 
-static char *exe_name;
-static int exe_index;
-
 static int shmid = -1;
 static int msqid = -1;
 static System *system = NULL;
@@ -42,10 +39,10 @@ void crash(char*);
 int main(int argc, char *argv[]) {
 	init(argc, argv);
 
-	exe_name = argv[0];
-	exe_index = atoi(argv[1]);
-	int m = atoi(argv[2]);
-	srand(getpid());
+	int spid = atoi(argv[1]);
+	int scheme = atoi(argv[2]);
+
+	srand(time(NULL) ^ getpid());
 
 	initIPC();
 
@@ -57,7 +54,7 @@ int main(int argc, char *argv[]) {
 		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
 		if (memory_reference <= 1000) {
-			if (m == 0)
+			if (scheme == 0)
 			{
 				address = rand() % 32768 + 0;
 				request_page = address >> 10;
@@ -111,7 +108,7 @@ int main(int argc, char *argv[]) {
 		if (is_terminate) break;
 	}
 
-	exit(exe_index);
+	return spid;
 }
 
 void init(int argc, char **argv) {
