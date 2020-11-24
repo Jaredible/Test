@@ -59,7 +59,6 @@ int findAvailablePID();
 void printSummary();
 
 void initSystem();
-void initDescriptor();
 void simulate();
 void handleProcesses();
 void trySpawnProcess();
@@ -379,8 +378,6 @@ int main(int argc, char *argv[]) {
 	queue = queue_create();
 	reference_string = list_create();
 	lru_stack = list_create();
-	initDescriptor();
-	printDescriptor();
 
 	/* Start simulating */
 	simulate();
