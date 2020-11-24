@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
 
 	while (true) {
 		int spawn_nano = rand() % 500000000 + 1000000;
-		if (nextSpawn.ns >= spawn_nano) {
+		if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= spawn_nano && !quit) {
 			nextSpawn.ns = 0;
 
 			int spid = findAvailablePID();
@@ -422,8 +422,6 @@ void registerSignalHandlers() {
 }
 
 void signalHandler(int sig) {
-	printf("Signal: %d\n", sig);
-
 	if (sig == SIGALRM) quit = true;
 	else {
 		printSummary();
