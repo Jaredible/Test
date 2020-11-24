@@ -331,7 +331,7 @@ void handleProcesses() {
 		message.type = -1;
 		message.spid = -1;
 		message.pid = -1;
-		message.flag = -1;
+		message.terminate = false;
 		message.page = -1;
 
 		/* On to the next user process to simulate */
