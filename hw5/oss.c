@@ -238,11 +238,6 @@ void handleProcesses() {
 			message.type = system->ptable[spid].pid;
 			message.safe = safe(queue, spid);
 			msgsnd(msqid, &message, sizeof(Message), 0);
-
-			if (verbose) {
-				printMatrix("Maximum", queue, &system->ptable[spid].maximum, count);
-				printMatrix("Allocation", queue, &system->ptable[spid].allocation, count);
-			}
 		}
 
 		advanceClock();
@@ -385,6 +380,8 @@ bool safe(Queue *queue, int index) {
 	}
 
 	if (verbose) {
+		printMatrix("Maximum", queue, max, count);
+		printMatrix("Allocation", queue, alloc, count);
 		char buf[BUFFER_LENGTH];
 		sprintf(buf, "Request p%-2d", index);
 		printVector(buf, req);
