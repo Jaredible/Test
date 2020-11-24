@@ -35,8 +35,6 @@ static int msqid = -1;
 static System *system = NULL;
 static Message message;
 
-#define SIZE 32
-
 int main(int argc, char *argv[]) {
 	init(argc, argv);
 
@@ -67,23 +65,23 @@ int main(int argc, char *argv[]) {
 			} else if (scheme == WEIGHTED) {
 				/* Execute weighted scheme algorithm */
 
-				double weights[SIZE];
+				double weights[PAGE_COUNT];
 				int i, j, p, r;
 				double sum;
 
-				for (i = 0; i < SIZE; i++)
+				for (i = 0; i < PAGE_COUNT; i++)
 					weights[i] = 0;
 
-				for (i = 0; i < SIZE; i++) {
+				for (i = 0; i < PAGE_COUNT; i++) {
 					sum = 0;
 					for (j = 0; j <= i; j++)
 						sum += 1 / (double) (j + 1);
 					weights[i] = sum;
 				}
 
-				r = rand() % ((int) weights[SIZE - 1] + 1);
+				r = rand() % ((int) weights[PAGE_COUNT - 1] + 1);
 
-				for (i = 0; i < SIZE; i++)
+				for (i = 0; i < PAGE_COUNT; i++)
 					if (weights[i] > r) {
 						p = i;
 						break;
