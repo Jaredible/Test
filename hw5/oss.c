@@ -342,18 +342,8 @@ bool safe(Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	for (i = 0; i < count; i++) {
-		p = next->index;
-		for (j = 0; j < RESOURCES_MAX; j++) {
-			max[i][j] = system->ptable[p].maximum[j];
-			alloc[i][j] = system->ptable[p].allocation[j];
-		}
-		next = (next->next != NULL) ? next->next : NULL;
-	}
-
-	for (i = 0; i < count; i++)
-		for (j = 0; j < RESOURCES_MAX; j++)
-			need[i][j] = max[i][j] - alloc[i][j];
+	setMatrix(queue, max, alloc, count);
+	calculateNeed(need, max, alloc, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
@@ -364,24 +354,23 @@ bool safe(Queue *queue, int index) {
 		for (j = 0; j < RESOURCES_MAX; j++)
 			avail[j] = avail[j] - alloc[i][j];
 
-	int idx = 0;
 	next = queue->front;
 	while (next != NULL) {
 		if (next->index == index) break;
-		idx++;
+		i++;
 		next = (next->next != NULL) ? next->next : NULL;
 	}
 
 	if (verbose) {
 		printMatrix("Maximum", queue, max, count);
-		printMatrix("Allocation", queue, &system->ptable[index].allocation, count);
+		printMatrix("Allocation", queue, alloc, count);
 		char buf[BUFFER_LENGTH];
 		sprintf(buf, "Request p%-2d", index);
 		printVector(buf, req);
 	}
 
 	bool finish[count];
-	int ss[count];
+	int sequence[count];
 	memset(finish, 0, count * sizeof(finish[0]));
 
 	int work[RESOURCES_MAX];
@@ -390,7 +379,7 @@ bool safe(Queue *queue, int index) {
 
 	/* Perform resource request algorithm */
 	for (j = 0; j < RESOURCES_MAX; j++) {
-		if (need[idx][j] < req[j] && j < descriptor.shared) {
+		if (need[i][j] < req[j] && j < descriptor.shared) {
 			log("\tAsked for more than initial max request\n");
 
 			if (verbose) {
@@ -403,8 +392,8 @@ bool safe(Queue *queue, int index) {
 
 		if (req[j] <= avail[j] && j < descriptor.shared) {
 			avail[j] -= req[j];
-			alloc[idx][j] += req[j];
-			need[idx][j] -= req[j];
+			alloc[i][j] += req[j];
+			need[i][j] -= req[j];
 		} else {
 			log("\tNot enough available resources\n");
 
@@ -430,7 +419,7 @@ bool safe(Queue *queue, int index) {
 					for (k = 0; k < RESOURCES_MAX; k++)
 						work[k] += alloc[p][k];
 
-					ss[i++] = p;
+					sequence[i++] = p;
 					finish[p] = 1;
 					found = true;
 				}
@@ -448,17 +437,17 @@ bool safe(Queue *queue, int index) {
 		printMatrix("Need", queue, need, count);
 	}
 
-	int sequence[count];
-	int seq_index = 0;
+	i = 0;
+	int temp[count];
 	next = queue->front;
 	while (next != NULL) {
-		sequence[seq_index++] = next->index;
+		temp[i++] = next->index;
 		next = (next->next != NULL) ? next->next : NULL;
 	}
 
 	log("System is in SAFE state. Safe sequence is: ");
 	for (i = 0; i < count; i++)
-		log("%2d ", sequence[ss[i]]);
+		log("%2d ", temp[sequence[i]]);
 	log("\n\n");
 
 	return true;
