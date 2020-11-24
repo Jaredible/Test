@@ -60,12 +60,14 @@ void printSummary();
 static char *programName;
 static volatile bool quit = false;
 
+/* IPC variables */
 static int shmid = -1;
 static int msqid = -1;
 static int semid = -1;
 static System *system = NULL;
 static Message message;
 
+/* Simulation variables */
 static int scheme = SIMPLE;
 static Queue *queue; /* Process queue */
 static List *reference; /* Reference string */
@@ -76,10 +78,9 @@ static int spawnCount = 0;
 static int exitCount = 0;
 static pid_t pids[PROCESSES_MAX];
 static int memory[MAX_FRAME];
-
-static int memoryaccess_number = 0;
-static int pagefault_number = 0;
-static unsigned int total_access_time = 0;
+static int memoryAccessCount = 0;
+static int pageFaultCount = 0;
+static unsigned int totalAccessTime = 0;
 
 int main(int argc, char *argv[]) {
 	init(argc, argv);
@@ -205,10 +206,10 @@ void handleProcesses() {
 		message.type = system->ptable[spid].pid;
 		message.spid = spid;
 		message.pid = system->ptable[spid].pid;
-		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+		msgsnd(msqid, &message, sizeof(Message), 0);
 
 		/* Receive a response of what they're doing */
-		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
+		msgrcv(msqid, &message, sizeof(Message), 1, 0);
 
 		advanceClock(0);
 
@@ -225,7 +226,7 @@ void handleProcesses() {
 			}
 		} else {
 			int last_frame;
-			total_access_time += advanceClock(0);
+			totalAccessTime += advanceClock(0);
 			queue_push(temp, spid);
 
 			unsigned int address = message.address;
@@ -235,13 +236,13 @@ void handleProcesses() {
 			} else {
 				flog("p%d requesting address write at %d-%d\n", message.spid, address, request_page);
 			}
-			memoryaccess_number++;
+			memoryAccessCount++;
 
 			if (system->ptable[spid].ptable[request_page].valid == 0) {
 				flog("p%d segfaulted at %d-%d\n", spid, address, request_page);
-				pagefault_number++;
+				pageFaultCount++;
 
-				total_access_time += advanceClock(10 * 1000000);
+				totalAccessTime += advanceClock(10 * 1000000);
 
 				bool is_memory_open = false;
 				int count_frame = 0;
@@ -395,7 +396,7 @@ void spawnProcess(int spid) {
 	activeCount++;
 	spawnCount++;
 
-	log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName, system->ptable[spid].spid, system->ptable[spid].pid, system->clock.s, system->clock.ns);
+	flog("p%d created\n", spid);
 }
 
 void initPCB(pid_t pid, int spid) {
@@ -592,19 +593,16 @@ void semUnlock(const int index) {
 }
 
 void printSummary() {
-	double mem_p_sec = (double)memoryaccess_number / (double)system->clock.s;
-	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
-	double avg_m = (double)total_access_time / (double)memoryaccess_number;
-	avg_m /= 1000000.0;
+	double memoryAccessesPerSecond = (double) memoryAccessCount / (double) system->clock.s;
+	double pageFaultsPerMemoryAccess = (double) pageFaultCount / (double) memoryAccessCount;
+	double averageMemoryAccessSpeed = ((double) totalAccessTime / (double) memoryAccessCount) / (double) 1000000;
 
-	log("- Master PID: %d\n", getpid());
-	log("- Number of forking during this execution: %d\n", spawnCount);
-	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
-	log("- Number of memory accesses: %d\n", memoryaccess_number);
-	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
-	log("- Number of page faults: %d\n", pagefault_number);
-	log("- Number of page faults per memory access: %f pagefault/access\n", pg_f_p_mem);
-	log("- Average memory access speed: %f ms/n\n", avg_m);
-	log("- Total memory access time: %f ms\n", (double)total_access_time / 1000000.0);
-	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", "output.log");
+	log("Total processes executed: %d\n", spawnCount);
+	log("System time: %d.%d\n", system->clock.s, system->clock.ns);
+	log("Memory access count: %d\n", memoryAccessCount);
+	log("Memory accesses per second: %f\n", memoryAccessesPerSecond);
+	log("Page fault count: %d\n", pageFaultCount);
+	log("Page faults per memory access: %f\n", pageFaultsPerMemoryAccess);
+	log("Average memory access speed: %f milliseconds\n", averageMemoryAccessSpeed);
+	log("Total memory access time: %f milliseconds\n", (double) totalAccessTime / (double) 1000000);
 }

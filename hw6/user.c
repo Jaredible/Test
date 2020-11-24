@@ -23,16 +23,17 @@
 
 #include "shared.h"
 
+void init(int, char**);
+void initIPC();
+void crash(char*);
+
 static char *programName;
 
+/* IPC variables */
 static int shmid = -1;
 static int msqid = -1;
 static System *system = NULL;
 static Message message;
-
-void init(int, char**);
-void initIPC();
-void crash(char*);
 
 #define SIZE 32
 
@@ -46,36 +47,42 @@ int main(int argc, char *argv[]) {
 
 	initIPC();
 
-	bool is_terminate = false;
+	bool terminate = false;
 	int referenceCount = 0;
 	unsigned int address = 0;
 	unsigned int page = 0;
-	while (true) {
-		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
+	/* Decision loop */
+	while (true) {
+		/* Wait until we get a message from OSS telling us it's our turn to "run" */
+		msgrcv(msqid, &message, sizeof(Message), getpid(), 0);
+
+		/* Continue getting address if we haven't referenced to our limit (1000) */
 		if (referenceCount <= 1000) {
 			if (scheme == SIMPLE) {
+				/* Execute simple scheme algorithm */
+
 				address = rand() % 32768 + 0;
 				page = address >> 10;
 			} else if (scheme == WEIGHTED) {
-				double weights[SIZE];
+				/* Execute weighted scheme algorithm */
 
-				int i, j;
+				double weights[SIZE];
+				int i, j, p, r;
+				double sum;
 
 				for (i = 0; i < SIZE; i++)
 					weights[i] = 0;
 
-				double sum;
 				for (i = 0; i < SIZE; i++) {
 					sum = 0;
 					for (j = 0; j <= i; j++)
-						sum += 1 / (double)(j + 1);
+						sum += 1 / (double) (j + 1);
 					weights[i] = sum;
 				}
 
-				int r = rand() % ((int)weights[SIZE - 1] + 1);
+				r = rand() % ((int) weights[SIZE - 1] + 1);
 
-				int p;
 				for (i = 0; i < SIZE; i++)
 					if (weights[i] > r) {
 						p = i;
@@ -84,20 +91,19 @@ int main(int argc, char *argv[]) {
 				
 				address = (p << 10) + (rand() % 1024);
 				page = p;
-			} else {
-				crash("Unknown scheme!");
-			}
+			} else crash("Unknown scheme!");
 
 			referenceCount++;
-		} else is_terminate = true;
+		} else terminate = true;
 
+		/* Send our decision to OSS */
 		message.type = 1;
-		message.terminate = is_terminate;
+		message.terminate = terminate;
 		message.address = address;
 		message.page = page;
-		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+		msgsnd(msqid, &message, sizeof(Message), 0);
 
-		if (is_terminate) break;
+		if (terminate) break;
 	}
 
 	return spid;
