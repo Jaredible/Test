@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
 				activeCount++;
 				spawnCount++;
 
-				initPCB(&system->ptable[last_index], last_index, pid);
+				initPCB(&system->ptable[spid], spid, pid);
 
 				queue_push(queue, last_index);
 
