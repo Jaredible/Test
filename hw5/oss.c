@@ -622,7 +622,7 @@ void calculateNeed(int need[][RESOURCES_MAX], int max[][RESOURCES_MAX], int allo
 }
 
 void printVector(char *title, int vector[RESOURCES_MAX]) {
-	log("%s\n     ", title);
+	log("%s\n    ", title);
 
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++) {
