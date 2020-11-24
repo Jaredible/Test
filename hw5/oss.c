@@ -240,8 +240,8 @@ void handleProcesses() {
 			msgsnd(msqid, &message, sizeof(Message), 0);
 
 			if (verbose) {
-				printMatrix("Maximum", queue, system->ptable[spid].maximum, count);
-				printMatrix("Allocation", queue, system->ptable[spid].allocation, count);
+				printMatrix("Maximum", queue, &system->ptable[spid].maximum, count);
+				printMatrix("Allocation", queue, &system->ptable[spid].allocation, count);
 			}
 		}
 
