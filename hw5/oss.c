@@ -629,7 +629,7 @@ void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int cou
 	next = queue->front;
 
 	int i, j;
-	log("%s Matrix\n", title);
+	log("%s\n", title);
 
 	for (i = 0; i < count; i++) {
 		log("p%-2d ", next->index);
