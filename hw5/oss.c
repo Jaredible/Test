@@ -497,8 +497,13 @@ void registerSignalHandlers() {
 }
 
 void signalHandler(int sig) {
-	if (quit) return;
-	quit = true;
+	if (sig == SIGALRM) quit = true;
+	else if (sig == SIGINT) {
+		kill(0, SIGUSR1);
+		while (waitpid(-1, NULL, WNOHANG) >= 0);
+		freeIPC();
+		exit(EXIT_SUCCESS);
+	}
 }
 
 void timer(int duration) {
