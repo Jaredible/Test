@@ -51,6 +51,7 @@ void freeIPC();
 void error(char*, ...);
 void crash(char*);
 void log(char*, ...);
+void flog(char*, ...);
 void semLock(const int);
 void semUnlock(const int);
 void printSummary();
@@ -246,8 +247,7 @@ void handleProcesses() {
 			memoryaccess_number++;
 
 			if (system->ptable[spid].ptable[request_page].valid == 0) {
-				log("%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
-							programName, address, request_page);
+				flog("a%d p%d not in frame (SEGFAULT)\n", address, request_page);
 				pagefault_number++;
 
 				total_access_time += advanceClock(14000000);
@@ -309,8 +309,7 @@ void handleProcesses() {
 					unsigned int frame = lru_stack->head->frame;
 
 					if (system->ptable[index].ptable[page].dirty == 1) {
-						log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
-									programName, address, page);
+						log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n", programName, address, page);
 					}
 
 					system->ptable[index].ptable[page].frame = -1;
@@ -328,8 +327,7 @@ void handleProcesses() {
 
 					if (system->ptable[spid].ptable[request_page].protection == 1) {
 						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
-						log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n",
-									programName, message.spid, message.pid, address, request_page);
+						log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n", programName, message.spid, message.pid, address, request_page);
 						system->ptable[spid].ptable[request_page].dirty = 1;
 					}
 				}
@@ -583,6 +581,25 @@ void log(char *fmt, ...) {
 	fprintf(fp, buf);
 
 	if (fclose(fp) == EOF) crash("fclose");
+}
+
+void flog(char *fmt, ...) {
+	FILE *fp = fopen(PATH_LOG, "a+");
+	if (fp == NULL) crash("fopen");
+	
+	char buf[BUFFER_LENGTH];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buf, BUFFER_LENGTH, fmt, args);
+	va_end(args);
+	
+	char buff[BUFFER_LENGTH];
+	snprintf(buff, BUFFER_LENGTH, "%s: [%d.%d] %s", basename(programName), system->clock.sec, system->clock.ns, buf);
+	
+	fprintf(stderr, buff);
+	fprintf(fp, buff);
+	
+	fclose(fp);
 }
 
 void semLock(const int index) {
