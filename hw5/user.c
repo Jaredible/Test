@@ -121,6 +121,8 @@ int main(int argc, char **argv) {
 						system->ptable[spid].request[i] = 0;
 					}
 
+					system->ptable[spid].allocation[0] = 69;
+
 					requesting = false;
 					acquired = true;
 				}
