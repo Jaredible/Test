@@ -594,7 +594,7 @@ void printSummary() {
 	double averageMemoryAccessSpeed = ((double) totalAccessTime / (double) memoryAccessCount) / (double) 1000000;
 
 	log("\nSUMMARY\n");
-	log("Total processes executed: %d\n", spawnCount);
+	log("Total processes executed: %d %d %d\n", activeCount, spawnCount, exitCount);
 	log("System time: %d.%d\n", system->clock.s, system->clock.ns);
 	log("Memory access count: %d\n", memoryAccessCount);
 	log("Memory accesses per second: %f\n", memoryAccessesPerSecond);
