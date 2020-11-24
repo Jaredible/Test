@@ -501,16 +501,18 @@ void registerSignalHandlers() {
 	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
 
 	timer(TIMEOUT);
-
-	signal(SIGUSR1, SIG_IGN);
 }
 
 void signalHandler(int sig) {
 	if (sig == SIGALRM) quit = true;
 	else if (sig == SIGINT) {
 		printSummary();
-		kill(0, SIGUSR1);
-		while (waitpid(-1, NULL, WNOHANG) >= 0);
+
+		int i;
+		for (i = 0; i < PROCESSES_MAX; i++)
+			if (pids[i] != -1) kill(pids[i], SIGTERM);
+		while (wait(NULL) > 0);
+
 		freeIPC();
 		exit(EXIT_SUCCESS);
 	}

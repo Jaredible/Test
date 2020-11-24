@@ -25,8 +25,6 @@
 #include "shared.h"
 
 void init(int, char**);
-void registerSignalHandlers();
-void signalHandler(int);
 void initIPC();
 void crash(char*);
 
@@ -40,8 +38,6 @@ static Message message;
 
 int main(int argc, char **argv) {
 	init(argc, argv);
-
-	registerSignalHandlers();
 
 	int spid = atoi(argv[1]);
 
@@ -144,24 +140,6 @@ void init(int argc, char **argv) {
 
 	setvbuf(stdout, NULL, _IONBF, 0);
 	setvbuf(stderr, NULL, _IONBF, 0);
-}
-
-void registerSignalHandlers() {
-	struct sigaction sa;
-
-	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
-	sa.sa_handler = &signalHandler;
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGUSR1, &sa, NULL) == -1) crash("sigaction");
-
-	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
-	sa.sa_handler = &signalHandler;
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
-}
-
-void signalHandler(int sig) {
-	exit(EXIT_FAILURE);
 }
 
 void initIPC() {
