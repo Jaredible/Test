@@ -593,7 +593,7 @@ void printSummary() {
 	double pageFaultsPerMemoryAccess = (double) pageFaultCount / (double) memoryAccessCount;
 	double averageMemoryAccessSpeed = ((double) totalAccessTime / (double) memoryAccessCount) / (double) 1000000;
 
-	log("\n\nSUMMARY");
+	log("\nSUMMARY\n");
 	log("Total processes executed: %d\n", spawnCount);
 	log("System time: %d.%d\n", system->clock.s, system->clock.ns);
 	log("Memory access count: %d\n", memoryAccessCount);
