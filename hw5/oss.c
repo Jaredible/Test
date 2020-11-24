@@ -171,7 +171,7 @@ void initDescriptor() {
 
 /* Simulation driver */
 void simulate() {
-	/* Main run loop */
+	/* Simulate run loop */
 	while (true) {
 		trySpawnProcess();
 		advanceClock();
