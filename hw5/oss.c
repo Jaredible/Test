@@ -351,6 +351,7 @@ bool safe(Queue *queue, int index) {
 	int avail[RESOURCES_MAX];
 
 	setMatrix(queue, max, alloc, count);
+	printf("Test: %d\n", alloc[0][0]);
 	calculateNeed(need, max, alloc, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
