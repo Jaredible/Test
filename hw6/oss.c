@@ -97,7 +97,11 @@ int main(int argc, char *argv[]) {
 			case 'h':
 				usage(EXIT_SUCCESS);
 			case 'm':
-				scheme = atoi(optarg);
+				scheme = atoi(optarg) - 1;
+				if (!isdigit(*optarg) || (scheme < 0 || scheme > 1)) {
+					error("invalid request scheme '%s'", optarg);
+					ok = false;
+				}
 				break;
 			default:
 				ok = false;
@@ -244,7 +248,7 @@ void handleProcesses() {
 
 				pageFaultCount++;
 
-				totalAccessTime += advanceClock(100 * 1000000);
+				totalAccessTime += advanceClock(10 * 1000000);
 
 				/* Find available frame */
 				bool isMemoryOpen = false;
@@ -445,8 +449,8 @@ void init(int argc, char **argv)
 void usage(int status) {
 	if (status != EXIT_SUCCESS) fprintf(stderr, "Try '%s -h' for more information\n", programName);
 	else {
-		printf("Usage: %s [-v]\n", programName);
-		printf("    -v : verbose on\n");
+		printf("Usage: %s [-m]\n", programName);
+		printf("    -m : Request scheme (default 1)\n");
 	}
 	exit(status);
 }
