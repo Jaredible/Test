@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
 
 				initPCB(&system->ptable[spid], spid, pid);
 
-				queue_push(queue, last_index);
+				queue_push(queue, spid);
 
 				log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
 							system->ptable[last_index].spid, system->ptable[last_index].pid, system->clock.s, system->clock.ns);
