@@ -186,7 +186,11 @@ void simulate() {
 		}
 
 		/* Stop simulating if the last user process has exited */
-		if (exitCount == spawnCount) break;
+		if (quit) {
+			if (exitCount == spawnCount) break;
+		} else {
+			if (exitCount == PROCESSES_TOTAL) break;
+		}
 	}
 
 	fprintf(stderr, "\n\n");
