@@ -58,6 +58,16 @@ static List *lru_stack;
 int findAvailablePID();
 void printSummary();
 
+void initSystem();
+void initDescriptor();
+void simulate();
+void handleProcesses();
+void trySpawnProcess();
+void spawnProcess(int);
+void initPCB(pid_t, int);
+int findAvailablePID();
+int advanceClock(int);
+
 void log(char*, ...);
 void registerSignalHandlers();
 void signalHandler(int);
@@ -65,7 +75,6 @@ void timer(int);
 void finalize();
 void semLock(const int);
 void semUnlock(const int);
-int advanceClock(int);
 
 void init(int, char**);
 void usage(int);
@@ -79,7 +88,6 @@ void error(char*, ...);
 void crash(char*);
 
 void initSystem();
-void initPCB(PCB*, int, pid_t);
 
 int main(int argc, char *argv[]) {
 	init(argc, argv);
@@ -160,7 +168,7 @@ int main(int argc, char *argv[]) {
 				activeCount++;
 				spawnCount++;
 
-				initPCB(&system->ptable[spid], spid, pid);
+				initPCB(pid, spid);
 
 				queue_push(queue, spid);
 
@@ -469,22 +477,21 @@ void semUnlock(const int index) {
 	if (semop(semid, &sop, 1) == -1) crash("semop");
 }
 
-int advanceClock(int increment)
-{
+int advanceClock(int ns) {
 	semLock(0);
-	int nano = (increment > 0) ? increment : rand() % 1000 + 1;
 
-	nextSpawn.ns += nano;
-	system->clock.ns += nano;
-
-	while (system->clock.ns >= 1000000000)
-	{
+	/* Increment system clock by random nanoseconds */
+	int r = (ns > 0) ? ns : rand() % (1 * 1000) + 1;
+	nextSpawn.ns += r;
+	system->clock.ns += r;
+	while (system->clock.ns >= (1000 * 1000000)) {
 		system->clock.s++;
-		system->clock.ns = abs(1000000000 - system->clock.ns);
+		system->clock.ns -= (1000 * 1000000);
 	}
 
 	semUnlock(0);
-	return nano;
+
+	return r;
 }
 
 void initSystem()
@@ -504,14 +511,13 @@ void initSystem()
 	}
 }
 
-void initPCB(PCB *pcb, int index, pid_t pid)
-{
+void initPCB(pid_t pid, int spid) {
 	int i;
-	pcb->spid = index;
-	pcb->pid = pid;
 
-	for (i = 0; i < MAX_PAGE; i++)
-	{
+	PCB *pcb = &system->ptable[spid];
+	pcb->pid = pid;
+	pcb->spid = spid;
+	for (i = 0; i < MAX_PAGE; i++) {
 		pcb->ptable[i].frame = -1;
 		pcb->ptable[i].protection = rand() % 2;
 		pcb->ptable[i].dirty = 0;

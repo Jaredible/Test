@@ -55,14 +55,14 @@ typedef struct {
 typedef struct {
 	uint frame;
 	uint address: 8;
-	uint protection: 1;
-	uint dirty: 1;
-	uint valid: 1;
+	uint protection;
+	uint dirty;
+	uint valid;
 } PTE;
 
 typedef struct {
-	int spid;
 	pid_t pid;
+	int spid;
 	PTE ptable[MAX_PAGE];
 } PCB;
 
