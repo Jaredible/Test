@@ -26,6 +26,12 @@ If that happens, then press Ctrl+C to exit the program and try rerunning it.
 
 The program will generate a log file called `output.log`. Use the -v (verbose) flag to have more information printed to the console and log file.
 
+Logged events:
+*--- = create
+-*-- = request
+--*- = release
+---* = terminate
+
 To build this program:
 ```
 make

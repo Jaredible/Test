@@ -218,7 +218,7 @@ void handleProcesses() {
 
 		/* Check if user process has terminated */
 		if (message.terminate) {
-			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+			log("%s: [%d.%d] p%d ---*\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			/* Remove user process from queue */
 			queue_remove(queue, spid);
@@ -232,7 +232,7 @@ void handleProcesses() {
 
 		/* Check if user process has requested resources */
 		if (message.request) {
-			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+			log("%s: [%d.%d] p%d -*--\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			/* Respond back whether their request is safe or not */
 			message.type = system->ptable[spid].pid;
@@ -243,7 +243,7 @@ void handleProcesses() {
 		advanceClock();
 
 		/* Check if user process has released resources */
-		if (message.release) log("%s: [%d.%d] p%d releasing\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
+		if (message.release) log("%s: [%d.%d] p%d --*-\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 		
 		/* On to the next user process to simulate */
 		count++;
@@ -294,7 +294,7 @@ void spawnProcess(int spid) {
 	activeCount++;
 	spawnCount++;
 
-	log("%s: [%d.%d] p%d created\n", basename(programName), system->clock.s, system->clock.ns, spid);
+	log("%s: [%d.%d] p%d *---\n", basename(programName), system->clock.s, system->clock.ns, spid);
 }
 
 void initPCB(pid_t pid, int spid) {
