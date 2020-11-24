@@ -81,9 +81,7 @@ int main(int argc, char *argv[]) {
 						p = i;
 						break;
 					}
-
-				int offset = (p << 10) + (rand() % 1024);
-
+				
 				address = (p << 10) + (rand() % 1024);
 				page = p;
 			} else {
