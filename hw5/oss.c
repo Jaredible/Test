@@ -60,6 +60,7 @@ void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
+void printSummary();
 
 static char *programName;
 static volatile bool quit = false;
@@ -139,6 +140,8 @@ int main(int argc, char **argv) {
 	/* Start simulating */
 	simulate();
 
+	printSummary();
+
 	/* Cleanup resources */
 	freeIPC();
 
@@ -192,10 +195,6 @@ void simulate() {
 			if (exitCount == PROCESSES_TOTAL) break;
 		}
 	}
-
-	fprintf(stderr, "\n\n");
-	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
-	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 }
 
 /* Sends and receives messages from user processes, and acts upon them */
@@ -499,6 +498,7 @@ void registerSignalHandlers() {
 void signalHandler(int sig) {
 	if (sig == SIGALRM) quit = true;
 	else if (sig == SIGINT) {
+		printSummary();
 		kill(0, SIGUSR1);
 		while (waitpid(-1, NULL, WNOHANG) >= 0);
 		freeIPC();
@@ -641,4 +641,10 @@ void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int cou
 
 		next = (next->next != NULL) ? next->next : NULL;
 	}
+}
+
+void printSummary() {
+	fprintf(stderr, "\n\n");
+	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
+	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 }
