@@ -244,7 +244,7 @@ void handleProcesses() {
 
 				pageFaultCount++;
 
-				totalAccessTime += advanceClock(10 * 1000000);
+				totalAccessTime += advanceClock(100 * 1000000);
 
 				/* Find available frame */
 				bool isMemoryOpen = false;
