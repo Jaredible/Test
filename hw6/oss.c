@@ -28,7 +28,32 @@
 
 #define log _log
 
-static pid_t pids[PROCESSES_MAX];
+/* Simulation functions */
+void initSystem();
+void simulate();
+void handleProcesses();
+void trySpawnProcess();
+void spawnProcess(int);
+void initPCB(pid_t, int);
+int findAvailablePID();
+int advanceClock(int);
+
+/* Program lifecycle functions */
+void init(int, char**);
+void usage(int);
+void registerSignalHandlers();
+void signalHandler(int);
+void timer(int);
+void initIPC();
+void freeIPC();
+
+/* Utility functions */
+void error(char*, ...);
+void crash(char*);
+void log(char*, ...);
+void semLock(const int);
+void semUnlock(const int);
+void printSummary();
 
 static char *programName;
 static volatile bool quit = false;
@@ -46,6 +71,7 @@ static Message message;
 static int activeCount = 0;
 static int spawnCount = 0;
 static int exitCount = 0;
+static pid_t pids[PROCESSES_MAX];
 
 static int memoryaccess_number = 0;
 static int pagefault_number = 0;
@@ -55,71 +81,189 @@ static int last_frame = -1;
 static List *reference_string;
 static List *lru_stack;
 
-int findAvailablePID();
-void printSummary();
+int main(int argc, char *argv[]) {
+	init(argc, argv);
 
-void initSystem();
-void simulate();
-void handleProcesses();
-void trySpawnProcess();
-void spawnProcess(int);
-void initPCB(pid_t, int);
-int findAvailablePID();
-int advanceClock(int);
+	srand(time(NULL) ^ getpid());
 
-void log(char*, ...);
-void registerSignalHandlers();
-void signalHandler(int);
-void timer(int);
-void finalize();
-void semLock(const int);
-void semUnlock(const int);
+	bool ok = true;
 
-void init(int, char**);
-void usage(int);
-void registerSignalHandlers();
-void signalHandler(int);
-void timer(int);
-void initIPC();
-void freeIPC();
-void finalize();
-void error(char*, ...);
-void crash(char*);
+	while (true) {
+		int c = getopt(argc, argv, "hm:");
+		if (c == -1) break;
+		switch (c) {
+			case 'h':
+				usage(EXIT_SUCCESS);
+			case 'm':
+				scheme = atoi(optarg);
+				break;
+			default:
+				ok = false;
+		}
+	}
 
-void initSystem();
+	if (optind < argc) {
+		char buf[BUFFER_LENGTH];
+		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
+		while (optind < argc) {
+			strncat(buf, argv[optind++], BUFFER_LENGTH);
+			if (optind < argc) strncat(buf, ", ", BUFFER_LENGTH);
+		}
+		error(buf);
+		ok = false;
+	}
+	
+	if (!ok) usage(EXIT_FAILURE);
 
-void trySpawnProcess() {
-	int spawn_nano = rand() % 500000000 + 1000000;
-	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= spawn_nano && !quit) {
-		nextSpawn.ns = 0;
+	registerSignalHandlers();
 
-		int spid = findAvailablePID();
-		if (spid >= 0) spawnProcess(spid);
+	/* Clear log file */
+	FILE *fp;
+	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
+	if (fclose(fp) == EOF) crash("fclose");
+
+	/* Setup simulation */
+	initIPC();
+	memset(pids, 0, sizeof(pids));
+	system->clock.s = 0;
+	system->clock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
+	initSystem();
+	queue = queue_create();
+	reference_string = list_create();
+	lru_stack = list_create();
+
+	/* Start simulating */
+	simulate();
+
+	printSummary();
+
+	/* Cleanup resources */
+	freeIPC();
+
+	return ok ? EXIT_SUCCESS  : EXIT_FAILURE;
+}
+
+void log(char *fmt, ...) {
+	FILE *fp = fopen("output.log", "a+");
+	if (fp == NULL) perror("ERROR");
+
+	char buf[BUFFER_LENGTH];
+	va_list args;
+
+	va_start(args, fmt);
+	vsprintf(buf, fmt, args);
+	va_end(args);
+
+	fprintf(stderr, buf);
+	fprintf(fp, buf);
+
+	if (fclose(fp) == EOF) perror("ERROR");
+}
+
+void registerSignalHandlers() {
+	struct sigaction sa;
+
+	/* Set up SIGINT handler */
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
+
+	/* Set up SIGALRM handler */
+	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
+	sa.sa_handler = &signalHandler;
+	sa.sa_flags = SA_RESTART;
+	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
+
+	/* Initialize timout timer */
+	timer(TIMEOUT);
+
+	signal(SIGSEGV, signalHandler);
+}
+
+void signalHandler(int sig) {
+	if (sig == SIGALRM) quit = true;
+	else {
+		printSummary();
+
+		/* Kill all running user processes */
+		int i;
+		for (i = 0; i < PROCESSES_MAX; i++)
+			if (pids[i] > 0) kill(pids[i], SIGTERM);
+		while (wait(NULL) > 0);
+
+		freeIPC();
+		exit(EXIT_SUCCESS);
 	}
 }
 
-void spawnProcess(int spid) {
-	pid_t pid = fork();
-	pids[spid] = pid;
-	if (pid == -1) crash("fork");
-	else if (pid == 0) {
-		char arg0[BUFFER_LENGTH];
-		char arg1[BUFFER_LENGTH];
-		sprintf(arg0, "%d", spid);
-		sprintf(arg1, "%d", scheme);
-		execl("./user", "user", arg0, arg1, (char*) NULL);
-		crash("execl");
+void timer(int duration) {
+	struct itimerval val;
+	val.it_value.tv_sec = duration;
+	val.it_value.tv_usec = 0;
+	val.it_interval.tv_sec = 0;
+	val.it_interval.tv_usec = 0;
+	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
+}
+
+void finalize() {
+	printSummary();
+
+	freeIPC();
+
+	kill(0, SIGUSR1);
+	while (waitpid(-1, NULL, WNOHANG) >= 0);
+}
+
+void semLock(const int index) {
+	struct sembuf sop = { index, -1, 0 };
+	if (semop(semid, &sop, 1) == -1) crash("semop");
+}
+
+void semUnlock(const int index) {
+	struct sembuf sop = { index, 1, 0 };
+	if (semop(semid, &sop, 1) == -1) crash("semop");
+}
+
+void initSystem() {
+	int i, j;
+	for (i = 0; i < PROCESSES_MAX; i++) {
+		system->ptable[i].pid = -1;
+		system->ptable[i].spid = -1;
+		for (j = 0; j < MAX_PAGE; j++) {
+			system->ptable[i].ptable[j].frame = -1;
+			system->ptable[i].ptable[j].protection = rand() % 2;
+			system->ptable[i].ptable[j].dirty = 0;
+			system->ptable[i].ptable[j].valid = 0;
+		}
 	}
+}
 
-	activeCount++;
-	spawnCount++;
+void simulate() {
+	while (true) {
+		trySpawnProcess();
+		advanceClock(0);
+		handleProcesses();
+		advanceClock(0);
 
-	initPCB(pid, spid);
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
+		}
 
-	queue_push(queue, spid);
-
-	log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-				system->ptable[spid].spid, system->ptable[spid].pid, system->clock.s, system->clock.ns);
+		/* Stop simulating if the last user process has exited */
+		if (quit) {
+			if (exitCount == spawnCount) break;
+		} else {
+			if (exitCount == PROCESSES_TOTAL) break;
+		}
+	}
 }
 
 void handleProcesses() {
@@ -301,175 +445,59 @@ void handleProcesses() {
 	free(temp);
 }
 
-void simulate() {
-	while (true) {
-		trySpawnProcess();
-		advanceClock(0);
-		handleProcesses();
-		advanceClock(0);
+void trySpawnProcess() {
+	int spawn_nano = rand() % 500000000 + 1000000;
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= spawn_nano && !quit) {
+		nextSpawn.ns = 0;
 
-		int status;
-		pid_t pid = waitpid(-1, &status, WNOHANG);
-		if (pid > 0) {
-			int spid = WEXITSTATUS(status);
-			pids[spid] = 0;
-			activeCount--;
-			exitCount++;
-		}
-
-		/* Stop simulating if the last user process has exited */
-		if (quit) {
-			if (exitCount == spawnCount) break;
-		} else {
-			if (exitCount == PROCESSES_TOTAL) break;
-		}
+		int spid = findAvailablePID();
+		if (spid >= 0) spawnProcess(spid);
 	}
 }
 
-int main(int argc, char *argv[]) {
-	init(argc, argv);
-
-	srand(time(NULL) ^ getpid());
-
-	bool ok = true;
-
-	while (true) {
-		int c = getopt(argc, argv, "hm:");
-		if (c == -1) break;
-		switch (c) {
-			case 'h':
-				usage(EXIT_SUCCESS);
-			case 'm':
-				scheme = atoi(optarg);
-				break;
-			default:
-				ok = false;
-		}
+void spawnProcess(int spid) {
+	pid_t pid = fork();
+	pids[spid] = pid;
+	if (pid == -1) crash("fork");
+	else if (pid == 0) {
+		char arg0[BUFFER_LENGTH];
+		char arg1[BUFFER_LENGTH];
+		sprintf(arg0, "%d", spid);
+		sprintf(arg1, "%d", scheme);
+		execl("./user", "user", arg0, arg1, (char*) NULL);
+		crash("execl");
 	}
 
-	if (optind < argc) {
-		char buf[BUFFER_LENGTH];
-		snprintf(buf, BUFFER_LENGTH, "found non-option(s): ");
-		while (optind < argc) {
-			strncat(buf, argv[optind++], BUFFER_LENGTH);
-			if (optind < argc) strncat(buf, ", ", BUFFER_LENGTH);
-		}
-		error(buf);
-		ok = false;
-	}
-	
-	if (!ok) usage(EXIT_FAILURE);
+	activeCount++;
+	spawnCount++;
 
-	registerSignalHandlers();
+	initPCB(pid, spid);
 
-	/* Clear log file */
-	FILE *fp;
-	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
-	if (fclose(fp) == EOF) crash("fclose");
+	queue_push(queue, spid);
 
-	/* Setup simulation */
-	initIPC();
-	memset(pids, 0, sizeof(pids));
-	system->clock.s = 0;
-	system->clock.ns = 0;
-	nextSpawn.s = 0;
-	nextSpawn.ns = 0;
-	initSystem();
-	queue = queue_create();
-	reference_string = list_create();
-	lru_stack = list_create();
-
-	/* Start simulating */
-	simulate();
-
-	printSummary();
-
-	/* Cleanup resources */
-	freeIPC();
-
-	return ok ? EXIT_SUCCESS  : EXIT_FAILURE;
+	log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
+				system->ptable[spid].spid, system->ptable[spid].pid, system->clock.s, system->clock.ns);
 }
 
-void log(char *fmt, ...) {
-	FILE *fp = fopen("output.log", "a+");
-	if (fp == NULL) perror("ERROR");
+void initPCB(pid_t pid, int spid) {
+	int i;
 
-	char buf[BUFFER_LENGTH];
-	va_list args;
-
-	va_start(args, fmt);
-	vsprintf(buf, fmt, args);
-	va_end(args);
-
-	fprintf(stderr, buf);
-	fprintf(fp, buf);
-
-	if (fclose(fp) == EOF) perror("ERROR");
-}
-
-void registerSignalHandlers() {
-	struct sigaction sa;
-
-	/* Set up SIGINT handler */
-	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
-	sa.sa_handler = &signalHandler;
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
-
-	/* Set up SIGALRM handler */
-	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
-	sa.sa_handler = &signalHandler;
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
-
-	/* Initialize timout timer */
-	timer(TIMEOUT);
-
-	signal(SIGSEGV, signalHandler);
-}
-
-void signalHandler(int sig) {
-	if (sig == SIGALRM) quit = true;
-	else {
-		printSummary();
-
-		/* Kill all running user processes */
-		int i;
-		for (i = 0; i < PROCESSES_MAX; i++)
-			if (pids[i] > 0) kill(pids[i], SIGTERM);
-		while (wait(NULL) > 0);
-
-		freeIPC();
-		exit(EXIT_SUCCESS);
+	PCB *pcb = &system->ptable[spid];
+	pcb->pid = pid;
+	pcb->spid = spid;
+	for (i = 0; i < MAX_PAGE; i++) {
+		pcb->ptable[i].frame = -1;
+		pcb->ptable[i].protection = rand() % 2;
+		pcb->ptable[i].dirty = 0;
+		pcb->ptable[i].valid = 0;
 	}
 }
 
-void timer(int duration) {
-	struct itimerval val;
-	val.it_value.tv_sec = duration;
-	val.it_value.tv_usec = 0;
-	val.it_interval.tv_sec = 0;
-	val.it_interval.tv_usec = 0;
-	if (setitimer(ITIMER_REAL, &val, NULL) == -1) crash("setitimer");
-}
-
-void finalize() {
-	printSummary();
-
-	freeIPC();
-
-	kill(0, SIGUSR1);
-	while (waitpid(-1, NULL, WNOHANG) >= 0);
-}
-
-void semLock(const int index) {
-	struct sembuf sop = { index, -1, 0 };
-	if (semop(semid, &sop, 1) == -1) crash("semop");
-}
-
-void semUnlock(const int index) {
-	struct sembuf sop = { index, 1, 0 };
-	if (semop(semid, &sop, 1) == -1) crash("semop");
+int findAvailablePID() {
+	int i;
+	for (i = 0; i < PROCESSES_MAX; i++)
+		if (pids[i] == 0) return i;
+	return -1;
 }
 
 int advanceClock(int ns) {
@@ -487,37 +515,6 @@ int advanceClock(int ns) {
 	semUnlock(0);
 
 	return r;
-}
-
-void initSystem()
-{
-	int i, j;
-	for (i = 0; i < PROCESSES_MAX; i++)
-	{
-		system->ptable[i].spid = -1;
-		system->ptable[i].pid = -1;
-		for (j = 0; j < MAX_PAGE; j++)
-		{
-			system->ptable[i].ptable[j].frame = -1;
-			system->ptable[i].ptable[j].protection = rand() % 2;
-			system->ptable[i].ptable[j].dirty = 0;
-			system->ptable[i].ptable[j].valid = 0;
-		}
-	}
-}
-
-void initPCB(pid_t pid, int spid) {
-	int i;
-
-	PCB *pcb = &system->ptable[spid];
-	pcb->pid = pid;
-	pcb->spid = spid;
-	for (i = 0; i < MAX_PAGE; i++) {
-		pcb->ptable[i].frame = -1;
-		pcb->ptable[i].protection = rand() % 2;
-		pcb->ptable[i].dirty = 0;
-		pcb->ptable[i].valid = 0;
-	}
 }
 
 void init(int argc, char **argv)
@@ -557,13 +554,6 @@ void error(char *fmt, ...) {
 	fprintf(stderr, "%s: %s\n", programName, buf);
 	
 	freeIPC();
-}
-
-int findAvailablePID() {
-	int i;
-	for (i = 0; i < PROCESSES_MAX; i++)
-		if (pids[i] == 0) return i;
-	return -1;
 }
 
 void initIPC() {
