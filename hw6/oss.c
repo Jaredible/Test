@@ -424,6 +424,8 @@ void registerSignalHandlers() {
 }
 
 void signalHandler(int sig) {
+	printf("Signal: %d\n", sig);
+	
 	if (sig == SIGALRM) quit = true;
 	else {
 		printSummary();
