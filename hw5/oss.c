@@ -209,8 +209,6 @@ void handleProcesses() {
 		/* Receive a response of what they're doing */
 		msgrcv(msqid, &message, sizeof(Message), 1, 0);
 
-		printf("%d\n", system->ptable[spid].allocation[0]);
-
 		advanceClock();
 
 		/* Check if user process has terminated */
@@ -294,14 +292,12 @@ void spawnProcess(int spid) {
 }
 
 void initPCB(pid_t pid, int spid) {
-	PCB *pcb = &system->ptable[spid];
-
-	pcb->pid = pid;
-	pcb->spid = spid;
-
 	int i;
 
 	/* Set default values in a user process' data structure */
+	PCB *pcb = &system->ptable[spid];
+	pcb->pid = pid;
+	pcb->spid = spid;
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
 		pcb->allocation[i] = 0;
@@ -336,8 +332,7 @@ void advanceClock() {
 bool safe(Queue *queue, int index) {
 	int i, p, j, k;
 
-	QueueNode *next;
-	next = queue->front;
+	QueueNode *next = queue->front;
 	if (next == NULL) return true;
 
 	int count = queue_size(queue);
@@ -606,21 +601,20 @@ void printDescriptor() {
 }
 
 void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
-	QueueNode next;
-	next.next = queue->front;
+	QueueNode *next = queue->front;
 
 	int i, j;
-	int index = next.next->index;
+	int index = next->index;
 	for (i = 0; i < count; i++) {
 		for (j = 0; j < RESOURCES_MAX; j++) {
 			max[i][j] = system->ptable[index].maximum[j];
 			alloc[i][j] = system->ptable[index].allocation[j];
 		}
 
-		if (next.next->next != NULL) {
-			next.next = next.next->next;
-			index = next.next->index;
-		} else next.next = NULL;
+		if (next->next != NULL) {
+			next = next->next;
+			index = next->index;
+		} else next = NULL;
 	}
 }
 
