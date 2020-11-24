@@ -216,6 +216,7 @@ void handleProcesses() {
 		if (message.terminate) {
 			log("p%d terminated\n", message.spid);
 
+			/* Free process' frames */
 			int i;
 			for (i = 0; i < MAX_PAGES; i++) {
 				if (system->ptable[spid].ptable[i].frame != -1) {
@@ -225,7 +226,7 @@ void handleProcesses() {
 				}
 			}
 		} else {
-			int last_frame;
+			int previousFrame;
 			totalAccessTime += advanceClock(0);
 			queue_push(temp, spid);
 
@@ -240,40 +241,35 @@ void handleProcesses() {
 
 			if (system->ptable[spid].ptable[request_page].valid == 0) {
 				flog("p%d segfaulted at %d-%d\n", spid, address, request_page);
+
 				pageFaultCount++;
 
 				totalAccessTime += advanceClock(10 * 1000000);
 
-				bool is_memory_open = false;
-				int count_frame = 0;
+				/* Find available frame */
+				bool isMemoryOpen = false;
+				int frameCount = 0;
 				while (true) {
-					last_frame = (last_frame + 1) % MAX_FRAMES;
-					uint32_t frame = memory[last_frame / 8] & (1 << (last_frame % 8));
-					if (frame == 0)
-					{
-						is_memory_open = true;
+					previousFrame = (previousFrame + 1) % MAX_FRAMES;
+					if (memory[previousFrame / 8] & (1 << (previousFrame % 8)) == 0) {
+						isMemoryOpen = true;
 						break;
 					}
-
-					if (count_frame >= MAX_FRAMES - 1)
-					{
-						break;
-					}
-					count_frame++;
+					if (frameCount++ >= MAX_FRAMES - 1) break;
 				}
 
 				/* Check if there is still space in memory */
-				if (is_memory_open == true) {
-					system->ptable[spid].ptable[request_page].frame = last_frame;
+				if (isMemoryOpen == true) {
+					system->ptable[spid].ptable[request_page].frame = previousFrame;
 					system->ptable[spid].ptable[request_page].valid = 1;
 
-					memory[last_frame / 8] |= (1 << (last_frame % 8));
+					memory[previousFrame / 8] |= (1 << (previousFrame % 8));
 
-					list_add(reference, spid, request_page, last_frame);
-					flog("p%d allocated frame %d\n", message.spid, last_frame);
+					list_add(reference, spid, request_page, previousFrame);
+					flog("p%d allocated frame %d\n", message.spid, previousFrame);
 
-					list_remove(stack, spid, request_page, last_frame);
-					list_add(stack, spid, request_page, last_frame);
+					list_remove(stack, spid, request_page, previousFrame);
+					list_add(stack, spid, request_page, previousFrame);
 
 					if (system->ptable[spid].ptable[request_page].protection == 0) {
 						flog("p%d given data from frame %d at %d-%d\n", spid, system->ptable[spid].ptable[request_page].frame, address, request_page);
@@ -310,7 +306,7 @@ void handleProcesses() {
 					list_add(reference, spid, request_page, frame);
 
 					if (system->ptable[spid].ptable[request_page].protection == 1) {
-						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
+						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, previousFrame);
 						log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n", programName, message.spid, message.pid, address, request_page);
 						system->ptable[spid].ptable[request_page].dirty = 1;
 					}
