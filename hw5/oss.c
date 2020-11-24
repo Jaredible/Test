@@ -338,8 +338,6 @@ void advanceClock() {
 }
 
 bool safe(Queue *queue, int index) {
-	semLock(1);
-
 	int i, j, k, p;
 
 	QueueNode *next = queue->front;
@@ -460,8 +458,6 @@ bool safe(Queue *queue, int index) {
 		log("%2d ", temp[sequence[i]]);
 	log("\n\n");
 
-	semUnlock(1);
-
 	return true;
 }
 
@@ -530,9 +526,8 @@ void initIPC() {
 	if ((msqid = msgget(key, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("msgget");
 
 	if ((key = ftok(KEY_PATHNAME, KEY_ID_SEMAPHORE)) == -1) crash("ftok");
-	if ((semid = semget(key, 2, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
+	if ((semid = semget(key, 1, IPC_EXCL | IPC_CREAT | PERMS)) == -1) crash("semget");
 	if (semctl(semid, 0, SETVAL, 1) == -1) crash("semctl");
-	if (semctl(semid, 1, SETVAL, 1) == -1) crash("semctl");
 }
 
 void freeIPC() {
@@ -649,7 +644,6 @@ void printMatrix(char *title, Queue *queue, int matrix[][RESOURCES_MAX], int cou
 }
 
 void printSummary() {
-	fprintf(stderr, "\n\n");
-	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
-	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
+	log("\n\nSystem time: %d.%d\n", system->clock.s, system->clock.ns);
+	log("Total processes executed: %d\n", spawnCount);
 }
