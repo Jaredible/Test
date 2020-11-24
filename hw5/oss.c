@@ -233,6 +233,7 @@ void handleProcesses() {
 			message.type = system->ptable[index].pid;
 			message.safe = safe(queue, index);
 			msgsnd(msqid, &message, sizeof(Message), 0);
+			printVector("Test", system->ptable[index].allocation);
 		}
 
 		advanceClock();
