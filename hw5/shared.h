@@ -28,8 +28,6 @@
 #define SHARED_RESOURCES_MIN (int) (RESOURCES_MAX * 0.15)
 #define SHARED_RESOURCES_MAX (int) (RESOURCES_MAX * 0.25)
 
-enum ActionType { TERMINATE, REQUEST, RELEASE };
-
 typedef struct {
 	unsigned int s;
 	unsigned int ns;

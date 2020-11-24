@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 		message.type = 1;
 		message.terminate = terminating;
 		message.request = requesting;
-		message.release = terminating;
+		message.release = releasing;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
 		/* Act upon that decision */
