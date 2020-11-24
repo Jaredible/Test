@@ -374,7 +374,7 @@ bool safe(Queue *queue, int index) {
 
 	if (verbose) {
 		printMatrix("Maximum", queue, max, count);
-		printMatrix("Allocation", queue, alloc, count);
+		printMatrix("Allocation", queue, system->ptable[index].allocation, count);
 		char buf[BUFFER_LENGTH];
 		sprintf(buf, "Request p%-2d", index);
 		printVector(buf, req);
