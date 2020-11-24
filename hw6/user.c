@@ -54,8 +54,7 @@ int main(int argc, char *argv[]) {
 		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
 		if (referenceCount <= 1000) {
-			if (scheme == SIMPLE)
-			{
+			if (scheme == SIMPLE) {
 				address = rand() % 32768 + 0;
 				page = address >> 10;
 			} else if (scheme == WEIGHTED) {
@@ -64,18 +63,13 @@ int main(int argc, char *argv[]) {
 				int i, j;
 
 				for (i = 0; i < SIZE; i++)
-				{
 					weights[i] = 0;
-				}
 
 				double sum;
-				for (i = 0; i < SIZE; i++)
-				{
+				for (i = 0; i < SIZE; i++) {
 					sum = 0;
 					for (j = 0; j <= i; j++)
-					{
 						sum += 1 / (double)(j + 1);
-					}
 					weights[i] = sum;
 				}
 
@@ -83,21 +77,19 @@ int main(int argc, char *argv[]) {
 
 				int p;
 				for (i = 0; i < SIZE; i++)
-				{
-					if (weights[i] > r)
-					{
+					if (weights[i] > r) {
 						p = i;
 						break;
 					}
-				}
 
-				int offset = (page << 10) + (rand() % 1024);
+				int offset = (p << 10) + (rand() % 1024);
 
-				address = offset;
-				page = page;
+				address = (p << 10) + (rand() % 1024);
+				page = p;
 			} else {
 				crash("Unknown scheme!");
 			}
+
 			referenceCount++;
 		} else is_terminate = true;
 
