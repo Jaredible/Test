@@ -513,6 +513,7 @@ void signalHandler(int sig) {
 			if (pids[i] != -1) kill(pids[i], SIGTERM);
 		while (wait(NULL) > 0);
 
+		printf("HERE\n");
 		freeIPC();
 		exit(EXIT_SUCCESS);
 	}
