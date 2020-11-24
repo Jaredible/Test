@@ -366,7 +366,7 @@ bool safe(Queue *queue, int index) {
 		printMatrix("Maximum", queue, max, count);
 		printMatrix("Allocation", queue, alloc, count);
 		char buf[BUFFER_LENGTH];
-		sprintf(buf, "Request (%2d)", index);
+		sprintf(buf, "Request (%d)", index);
 		printVector(buf, req);
 	}
 
