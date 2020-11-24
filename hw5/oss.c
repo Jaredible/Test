@@ -350,8 +350,18 @@ bool safe(Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	setMatrix(queue, max, alloc, count);
-	calculateNeed(need, max, alloc, count);
+	for (i = 0; i < count; i++) {
+		p = next->index;
+		for (j = 0; j < RESOURCES_MAX; j++) {
+			max[i][j] = system->ptable[p].maximum[j];
+			alloc[i][j] = system->ptable[p].allocation[j];
+		}
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+
+	for (i = 0; i < count; i++)
+		for (j = 0; j < RESOURCES_MAX; j++)
+			need[i][j] = max[i][j] - alloc[i][j];
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
@@ -371,7 +381,7 @@ bool safe(Queue *queue, int index) {
 
 	if (verbose) {
 		printMatrix("Maximum", queue, max, count);
-		printMatrix("Allocation", queue, &system->ptable[index], count);
+		printMatrix("Allocation", queue, alloc, count);
 		char buf[BUFFER_LENGTH];
 		sprintf(buf, "Request p%-2d", index);
 		printVector(buf, req);
