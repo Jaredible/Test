@@ -22,7 +22,7 @@
 
 #define PATH_LOG "output.log"
 #define TIMEOUT 2
-#define PROCESSES_MAX 18
+#define PROCESSES_MAX 16
 #define PROCESSES_TOTAL 40
 
 #define PROCESS_SIZE 32000
