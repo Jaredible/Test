@@ -504,11 +504,13 @@ void registerSignalHandlers() {
 
 	/* Initialize timout timer */
 	timer(TIMEOUT);
+
+	signal(SIGSEGV, signalHandler);
 }
 
 void signalHandler(int sig) {
 	if (sig == SIGALRM) quit = true;
-	else if (sig == SIGINT) {
+	else {
 		printSummary();
 
 		/* Kill all running user processes */
