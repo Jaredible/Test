@@ -48,7 +48,6 @@ void signalHandler(int);
 void timer(int);
 void initIPC();
 void freeIPC();
-void finalize();
 
 /* Utility functions */
 void error(char*, ...);
@@ -63,6 +62,7 @@ void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
 
 static char *programName;
+static volatile bool quit = false;
 
 /* IPC variables */
 static int shmid = -1;
@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
 	simulate();
 
 	/* Cleanup resources */
-	finalize();
+	freeIPC();
 
 	return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -186,8 +186,12 @@ void simulate() {
 		}
 
 		/* Stop simulating if the last user process has exited */
-		if (exitCount == PROCESSES_TOTAL) break;
+		if (exitCount == spawnCount && quit) break;
 	}
+
+	fprintf(stderr, "\n\n");
+	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
+	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
 }
 
 /* Sends and receives messages from user processes, and acts upon them */
@@ -252,6 +256,7 @@ void trySpawnProcess() {
 	if (activeCount >= PROCESSES_MAX) return;
 	if (spawnCount >= PROCESSES_TOTAL) return;
 	if (nextSpawn.ns < (rand() % (500 + 1)) * 1000000) return;
+	if (quit) return;
 
 	/* Reset next spawn time */
 	nextSpawn.ns = 0;
@@ -488,8 +493,8 @@ void registerSignalHandlers() {
 }
 
 void signalHandler(int sig) {
-	finalize();
-	exit(EXIT_SUCCESS);
+	if (quit) return;
+	quit = true;
 }
 
 void timer(int duration) {
@@ -523,19 +528,6 @@ void freeIPC() {
 	if (msqid > 0 && msgctl(msqid, IPC_RMID, NULL) == -1) crash("msgctl");
 
 	if (semid > 0 && semctl(semid, 0, IPC_RMID) == -1) crash("semctl");
-}
-
-void finalize() {
-	fprintf(stderr, "\n\n");
-	fprintf(stderr, "System time: %d.%d\n", system->clock.s, system->clock.ns);
-	fprintf(stderr, "Total processes executed: %d\n", spawnCount);
-
-	freeIPC();
-
-	/* Kill all remaining user processes */
-	kill(0, SIGUSR1);
-	/* Wait for every last one to exit */
-	while (waitpid(-1, NULL, WNOHANG) >= 0);
 }
 
 void error(char *fmt, ...) {
