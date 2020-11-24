@@ -55,6 +55,9 @@ static int last_frame = -1;
 static List *reference_string;
 static List *lru_stack;
 
+int findAvailablePID();
+void printSummary();
+
 void log(char*, ...);
 void registerSignalHandlers();
 void signalHandler(int);
@@ -445,21 +448,7 @@ void timer(int duration) {
 }
 
 void finalize() {
-	double mem_p_sec = (double)memoryaccess_number / (double)system->clock.s;
-	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
-	double avg_m = (double)total_access_time / (double)memoryaccess_number;
-	avg_m /= 1000000.0;
-
-	log("- Master PID: %d\n", getpid());
-	log("- Number of forking during this execution: %d\n", spawnCount);
-	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
-	log("- Number of memory accesses: %d\n", memoryaccess_number);
-	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
-	log("- Number of page faults: %d\n", pagefault_number);
-	log("- Number of page faults per memory access: %f pagefault/access\n", pg_f_p_mem);
-	log("- Average memory access speed: %f ms/n\n", avg_m);
-	log("- Total memory access time: %f ms\n", (double)total_access_time / 1000000.0);
-	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", "output.log");
+	printSummary();
 
 	freeIPC();
 
@@ -595,4 +584,22 @@ void freeIPC() {
 	if (msqid > 0 && msgctl(msqid, IPC_RMID, NULL) == -1) crash("msgctl");
 
 	if (semid > 0 && semctl(semid, 0, IPC_RMID) == -1) crash("semctl");
+}
+
+void printSummary() {
+	double mem_p_sec = (double)memoryaccess_number / (double)system->clock.s;
+	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
+	double avg_m = (double)total_access_time / (double)memoryaccess_number;
+	avg_m /= 1000000.0;
+	
+	log("- Master PID: %d\n", getpid());
+	log("- Number of forking during this execution: %d\n", spawnCount);
+	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
+	log("- Number of memory accesses: %d\n", memoryaccess_number);
+	log("- Number of memory accesses per nanosecond: %f memory/second\n", mem_p_sec);
+	log("- Number of page faults: %d\n", pagefault_number);
+	log("- Number of page faults per memory access: %f pagefault/access\n", pg_f_p_mem);
+	log("- Average memory access speed: %f ms/n\n", avg_m);
+	log("- Total memory access time: %f ms\n", (double)total_access_time / 1000000.0);
+	fprintf(stderr, "SIMULATION RESULT is recorded into the log file: %s\n", "output.log");
 }
