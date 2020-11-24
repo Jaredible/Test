@@ -603,18 +603,14 @@ void printDescriptor() {
 void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
 	QueueNode *next = queue->front;
 
-	int i, j;
-	int index = next->index;
+	int i, j, index;
 	for (i = 0; i < count; i++) {
+		index = next->index;
 		for (j = 0; j < RESOURCES_MAX; j++) {
 			max[i][j] = system->ptable[index].maximum[j];
 			alloc[i][j] = system->ptable[index].allocation[j];
 		}
-
-		if (next->next != NULL) {
-			next = next->next;
-			index = next->index;
-		} else next = NULL;
+		next = (next->next != NULL) ? next->next : NULL;
 	}
 }
 
