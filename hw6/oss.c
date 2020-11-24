@@ -251,7 +251,7 @@ void handleProcesses() {
 				int frameCount = 0;
 				while (true) {
 					previousFrame = (previousFrame + 1) % MAX_FRAMES;
-					if (memory[previousFrame / 8] & (1 << (previousFrame % 8)) == 0) {
+					if ((memory[previousFrame / 8] & (1 << (previousFrame % 8))) == 0) {
 						isMemoryOpen = true;
 						break;
 					}
