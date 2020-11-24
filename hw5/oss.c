@@ -588,7 +588,7 @@ void semUnlock(const int index) {
 }
 
 void printDescriptor() {
-	printVector("Total", descriptor->resource);
+	printVector("Total", descriptor.resource);
 	log("Shareable resources: %d\n", descriptor.shared);
 }
 
