@@ -215,14 +215,11 @@ void handleProcesses() {
 		advanceClock(0);
 
 		if (message.flag == 0) {
-			log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						programName, message.spid, message.pid, system->clock.s, system->clock.ns);
+			log("p%d terminated\n", message.spid);
 
 			int i;
-			for (i = 0; i < MAX_PAGE; i++)
-			{
-				if (system->ptable[spid].ptable[i].frame != -1)
-				{
+			for (i = 0; i < MAX_PAGE; i++) {
+				if (system->ptable[spid].ptable[i].frame != -1) {
 					int frame = system->ptable[spid].ptable[i].frame;
 					list_remove(reference_string, spid, i, frame);
 					main_memory[frame / 8] &= ~(1 << (frame % 8));
@@ -235,20 +232,14 @@ void handleProcesses() {
 			unsigned int address = message.address;
 			unsigned int request_page = message.page;
 			if (system->ptable[spid].ptable[request_page].protection == 0) {
-				log("%s: process (%d) [%d] requesting read of address (%d) [%d] at time %d:%d\n",
-							programName, message.spid, message.pid,
-							address, request_page,
-							system->clock.s, system->clock.ns);
+				flog("p%d requesting address read at %d-%d\n", message.spid, address, request_page);
 			} else {
-				log("%s: process (%d) [%d] requesting write of address (%d) [%d] at time %d:%d\n",
-							programName, message.spid, message.pid,
-							address, request_page,
-							system->clock.s, system->clock.ns);
+				flog("p%d requesting address write at %d-%d\n", message.spid, address, request_page);
 			}
 			memoryaccess_number++;
 
 			if (system->ptable[spid].ptable[request_page].valid == 0) {
-				flog("a%d p%d not in frame (SEGFAULT)\n", address, request_page);
+				flog("p%d segfaulted at %d-%d\n", spid, address, request_page);
 				pagefault_number++;
 
 				total_access_time += advanceClock(14000000);
@@ -278,31 +269,22 @@ void handleProcesses() {
 					main_memory[last_frame / 8] |= (1 << (last_frame % 8));
 
 					list_add(reference_string, spid, request_page, last_frame);
-					log("%s: allocated frame [%d] to PID (%d) [%d]\n",
-								programName, last_frame, message.spid, message.pid);
+					flog("p%d allocated frame %d\n", message.spid, last_frame);
 
 					list_remove(lru_stack, spid, request_page, last_frame);
 					list_add(lru_stack, spid, request_page, last_frame);
 
 					if (system->ptable[spid].ptable[request_page].protection == 0) {
-						log("%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
-									programName, address, request_page,
-									system->ptable[spid].ptable[request_page].frame,
-									message.spid, message.pid,
-									system->clock.s, system->clock.ns);
-
+						flog("p%d given data from frame %d at %d-%d\n", spid, system->ptable[spid].ptable[request_page].frame, address, request_page);
 						system->ptable[spid].ptable[request_page].dirty = 0;
 					} else {
-						log("%s: address (%d) [%d] in frame (%d), writing data to frame at time %d:%d\n",
-									programName, address, request_page,
-									system->ptable[spid].ptable[request_page].frame,
-									system->clock.s, system->clock.ns);
-
+						flog("p%d writing data to frame %d at %d-%d\n", spid, system->ptable[spid].ptable[request_page].frame, address, request_page);
 						system->ptable[spid].ptable[request_page].dirty = 1;
 					}
 				} else {
-					log("%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
-								programName, address, request_page);
+					/* Handle when memory is full */
+
+					flog("%d-%d is not in frame\n", address, request_page);
 
 					unsigned int index = lru_stack->head->index;
 					unsigned int page = lru_stack->head->page;
@@ -310,17 +292,17 @@ void handleProcesses() {
 					unsigned int frame = lru_stack->head->frame;
 
 					if (system->ptable[index].ptable[page].dirty == 1) {
-						log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n", programName, address, page);
+						/* Modified information is written back to disk */
+						flog("%d-%d modified\n", address, page);
 					}
 
+					/* Page replacement */
 					system->ptable[index].ptable[page].frame = -1;
 					system->ptable[index].ptable[page].dirty = 0;
 					system->ptable[index].ptable[page].valid = 0;
-
 					system->ptable[spid].ptable[request_page].frame = frame;
 					system->ptable[spid].ptable[request_page].dirty = 0;
 					system->ptable[spid].ptable[request_page].valid = 1;
-
 					list_remove(lru_stack, index, page, frame);
 					list_remove(reference_string, index, page, frame);
 					list_add(lru_stack, spid, request_page, frame);
