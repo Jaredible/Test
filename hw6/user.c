@@ -34,15 +34,13 @@ static System *system = NULL;
 static Message message;
 
 void init(int, char**);
-void registerSignalHandlers();
-void signalHandler(int);
 void initIPC();
 void crash(char*);
 
 #define SIZE 32
 
 int main(int argc, char *argv[]) {
-	registerSignalHandlers();
+	init(argc, argv);
 
 	exe_name = argv[0];
 	exe_index = atoi(argv[1]);
@@ -116,30 +114,11 @@ int main(int argc, char *argv[]) {
 	exit(exe_index);
 }
 
-void registerSignalHandlers()
-{
-	struct sigaction sa;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_handler = &signalHandler;
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGUSR1, &sa, NULL) == -1)
-	{
-		perror("ERROR");
-	}
+void init(int argc, char **argv) {
+	programName = argv[0];
 
-	struct sigaction sa2;
-	sigemptyset(&sa2.sa_mask);
-	sa2.sa_handler = &signalHandler;
-	sa2.sa_flags = SA_RESTART;
-	if (sigaction(SIGINT, &sa2, NULL) == -1)
-	{
-		perror("ERROR");
-	}
-}
-void signalHandler(int sig)
-{
-	printf("%d: Terminated!\n", getpid());
-	exit(2);
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 }
 
 void initIPC() {
@@ -151,13 +130,6 @@ void initIPC() {
 
 	if ((key = ftok(".", 1)) == -1) crash("ftok");
 	if ((msqid = msgget(key, 0)) == -1) crash("msgget");
-}
-
-void init(int argc, char **argv) {
-	programName = argv[0];
-
-	setvbuf(stdout, NULL, _IONBF, 0);
-	setvbuf(stderr, NULL, _IONBF, 0);
 }
 
 void crash(char *msg) {
