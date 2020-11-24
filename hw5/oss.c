@@ -510,7 +510,7 @@ void signalHandler(int sig) {
 
 		int i;
 		for (i = 0; i < PROCESSES_MAX; i++)
-			if (pids[i] != -1) kill(pids[i], SIGTERM);
+			if (pids[i] > 0) kill(pids[i], SIGTERM);
 		while (wait(NULL) > 0);
 
 		printf("HERE\n");
