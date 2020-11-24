@@ -380,7 +380,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	return EXIT_SUCCESS;
+	printSummary();
+
+	freeIPC();
+
+	return ok ? EXIT_SUCCESS  : EXIT_FAILURE;
 }
 
 void log(char *fmt, ...) {
