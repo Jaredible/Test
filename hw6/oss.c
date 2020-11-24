@@ -3,6 +3,7 @@
  * Jared Diehl (jmddnb@umsystem.edu)
  */
 
+#include <ctype.h>
 #include <errno.h>
 #include <libgen.h>
 #include <math.h>
