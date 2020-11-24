@@ -330,7 +330,7 @@ void advanceClock() {
 }
 
 bool safe(Queue *queue, int index) {
-	int i, p, j, k;
+	int i, j, k, p, index;
 
 	QueueNode *next = queue->front;
 	if (next == NULL) return true;
@@ -342,8 +342,18 @@ bool safe(Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	setMatrix(queue, &max, &alloc, count);
-	calculateNeed(&need, &max, &alloc, count);
+	for (i = 0; i < count; i++) {
+		index = next->index;
+		for (j = 0; j < RESOURCES_MAX; j++) {
+			max[i][j] = system->ptable[index].maximum[j];
+			alloc[i][j] = system->ptable[index].allocation[j];
+		}
+		next = (next->next != NULL) ? next->next : NULL;
+	}
+
+	for (i = 0; i < count; i++)
+		for (j = 0; j < RESOURCES_MAX; j++)
+			need[i][j] = max[i][j] - alloc[i][j];
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
