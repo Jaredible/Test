@@ -56,8 +56,8 @@ void log(char*, ...);
 void semLock(const int);
 void semUnlock(const int);
 void printDescriptor();
-void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
-void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
+void setMatrix(Queue*, int**, int**, int);
+void calculateNeed(int**, int**, int**, int);
 void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
 void printSummary();
@@ -350,9 +350,8 @@ bool safe(Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
-	setMatrix(queue, max, alloc, count);
-	printf("Test: %d\n", alloc[0][0]);
-	calculateNeed(need, max, alloc, count);
+	setMatrix(queue, &max, &alloc, count);
+	calculateNeed(&need, &max, &alloc, count);
 
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		avail[i] = descriptor.resource[i];
@@ -593,7 +592,7 @@ void printDescriptor() {
 	log("Shareable resources: %d\n", descriptor.shared);
 }
 
-void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
+void setMatrix(Queue *queue, int **max, int **alloc, int count) {
 	QueueNode *next = queue->front;
 
 	int i, j, index;
@@ -607,7 +606,7 @@ void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX
 	}
 }
 
-void calculateNeed(int need[][RESOURCES_MAX], int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
+void calculateNeed(int **need, int **max, int **alloc, int count) {
 	int i, j;
 	for (i = 0; i < count; i++)
 		for (j = 0; j < RESOURCES_MAX; j++)
