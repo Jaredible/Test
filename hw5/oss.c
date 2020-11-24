@@ -56,8 +56,6 @@ void log(char*, ...);
 void semLock(const int);
 void semUnlock(const int);
 void printDescriptor();
-void setMatrix(Queue*, int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
-void calculateNeed(int[][RESOURCES_MAX], int[][RESOURCES_MAX], int[][RESOURCES_MAX], int);
 void printVector(char*, int[RESOURCES_MAX]);
 void printMatrix(char*, Queue*, int[][RESOURCES_MAX], int);
 void printSummary();
@@ -350,6 +348,7 @@ bool safe(Queue *queue, int index) {
 	int need[count][RESOURCES_MAX];
 	int avail[RESOURCES_MAX];
 
+	/* Copy user process' resource data */
 	for (i = 0; i < count; i++) {
 		p = next->index;
 		for (j = 0; j < RESOURCES_MAX; j++) {
@@ -359,6 +358,7 @@ bool safe(Queue *queue, int index) {
 		next = (next->next != NULL) ? next->next : NULL;
 	}
 
+	/* Calculate needed resources */
 	for (i = 0; i < count; i++)
 		for (j = 0; j < RESOURCES_MAX; j++)
 			need[i][j] = max[i][j] - alloc[i][j];
@@ -600,27 +600,6 @@ void semUnlock(const int index) {
 void printDescriptor() {
 	printVector("Total", descriptor.resource);
 	log("Shareable resources: %d\n", descriptor.shared);
-}
-
-void setMatrix(Queue *queue, int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
-	QueueNode *next = queue->front;
-
-	int i, j, index;
-	for (i = 0; i < count; i++) {
-		index = next->index;
-		for (j = 0; j < RESOURCES_MAX; j++) {
-			max[i][j] = system->ptable[index].maximum[j];
-			alloc[i][j] = system->ptable[index].allocation[j];
-		}
-		next = (next->next != NULL) ? next->next : NULL;
-	}
-}
-
-void calculateNeed(int need[][RESOURCES_MAX], int max[][RESOURCES_MAX], int alloc[][RESOURCES_MAX], int count) {
-	int i, j;
-	for (i = 0; i < count; i++)
-		for (j = 0; j < RESOURCES_MAX; j++)
-			need[i][j] = max[i][j] - alloc[i][j];
 }
 
 void printVector(char *title, int vector[RESOURCES_MAX]) {
