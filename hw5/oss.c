@@ -303,7 +303,7 @@ void initPCB(pid_t pid, int spid) {
 	/* Set default values in a user process' data structure */
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
-		pcb->allocation[i] = 0;
+		pcb->allocation[i] = 1;
 		pcb->request[i] = 0;
 		pcb->release[i] = 0;
 	}
