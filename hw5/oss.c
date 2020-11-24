@@ -626,7 +626,7 @@ void printVector(char *title, int vector[RESOURCES_MAX]) {
 
 	int i;
 	for (i = 0; i < RESOURCES_MAX; i++) {
-		log("%2-d", vector[i]);
+		log("%-2d", vector[i]);
 		if (i < RESOURCES_MAX - 1) log(" ");
 	}
 	log("\n");
