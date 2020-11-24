@@ -101,6 +101,8 @@ int main(int argc, char **argv) {
 				break;
 		}
 
+		system->ptable[spid].allocation[0] = 420;
+
 		/* Send that decision to OSS */
 		message.type = 1;
 		message.terminate = terminating ? 0 : 1;
@@ -120,9 +122,7 @@ int main(int argc, char **argv) {
 						system->ptable[spid].allocation[i] += system->ptable[spid].request[i];
 						system->ptable[spid].request[i] = 0;
 					}
-
-					system->ptable[spid].allocation[0] = 69;
-
+					
 					requesting = false;
 					acquired = true;
 				}

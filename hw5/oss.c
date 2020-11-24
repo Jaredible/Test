@@ -200,14 +200,16 @@ void handleProcesses() {
 		advanceClock();
 
 		/* Send a message to a user process saying it's your turn to "run" */
-		int index = next->index;
-		message.type = system->ptable[index].pid;
+		int spid = next->index;
+		message.type = system->ptable[spid].pid;
 		message.spid = index;
-		message.pid = system->ptable[index].pid;
+		message.pid = system->ptable[spid].pid;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
 		/* Receive a response of what they're doing */
 		msgrcv(msqid, &message, sizeof(Message), 1, 0);
+
+		printf("%d\n", system->ptable[spid].allocation[0]);
 
 		advanceClock();
 
@@ -216,12 +218,12 @@ void handleProcesses() {
 			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			/* Remove user process from queue */
-			queue_remove(queue, index);
+			queue_remove(queue, spid);
 			next = queue->front;
 			for (i = 0; i < count; i++)
 				next = (next->next != NULL) ? next->next : NULL;
 
-			/* Move on to the next user process to simulate */
+			/* Move on to the next user process */
 			continue;
 		}
 
@@ -230,10 +232,9 @@ void handleProcesses() {
 			log("%s: [%d.%d] p%d requesting\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			/* Respond back whether their request is safe or not */
-			message.type = system->ptable[index].pid;
-			message.safe = safe(queue, index);
+			message.type = system->ptable[spid].pid;
+			message.safe = safe(queue, spid);
 			msgsnd(msqid, &message, sizeof(Message), 0);
-			printVector("Test", system->ptable[index].allocation);
 		}
 
 		advanceClock();
@@ -303,7 +304,7 @@ void initPCB(pid_t pid, int spid) {
 	/* Set default values in a user process' data structure */
 	for (i = 0; i < RESOURCES_MAX; i++) {
 		pcb->maximum[i] = rand() % (descriptor.resource[i] + 1);
-		pcb->allocation[i] = 1;
+		pcb->allocation[i] = 0;
 		pcb->request[i] = 0;
 		pcb->release[i] = 0;
 	}
