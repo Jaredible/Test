@@ -4,6 +4,7 @@
  */
 
 #include <errno.h>
+#include <libgen.h>
 #include <math.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -594,7 +595,7 @@ void flog(char *fmt, ...) {
 	va_end(args);
 	
 	char buff[BUFFER_LENGTH];
-	snprintf(buff, BUFFER_LENGTH, "%s: [%d.%d] %s", basename(programName), system->clock.sec, system->clock.ns, buf);
+	snprintf(buff, BUFFER_LENGTH, "%s: [%d.%d] %s", basename(programName), system->clock.s, system->clock.ns, buf);
 	
 	fprintf(stderr, buff);
 	fprintf(fp, buff);
