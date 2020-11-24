@@ -47,18 +47,18 @@ int main(int argc, char *argv[]) {
 	initIPC();
 
 	bool is_terminate = false;
-	int memory_reference = 0;
+	int referenceCount = 0;
 	unsigned int address = 0;
-	unsigned int request_page = 0;
+	unsigned int page = 0;
 	while (true) {
 		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 
-		if (memory_reference <= 1000) {
-			if (scheme == 0)
+		if (referenceCount <= 1000) {
+			if (scheme == SIMPLE)
 			{
 				address = rand() % 32768 + 0;
-				request_page = address >> 10;
-			} else {
+				page = address >> 10;
+			} else if (scheme == WEIGHTED) {
 				double weights[SIZE];
 
 				int i, j;
@@ -81,12 +81,12 @@ int main(int argc, char *argv[]) {
 
 				int r = rand() % ((int)weights[SIZE - 1] + 1);
 
-				int page;
+				int p;
 				for (i = 0; i < SIZE; i++)
 				{
 					if (weights[i] > r)
 					{
-						page = i;
+						p = i;
 						break;
 					}
 				}
@@ -94,15 +94,17 @@ int main(int argc, char *argv[]) {
 				int offset = (page << 10) + (rand() % 1024);
 
 				address = offset;
-				request_page = page;
+				page = page;
+			} else {
+				crash("Unknown scheme!");
 			}
-			memory_reference++;
+			referenceCount++;
 		} else is_terminate = true;
 
 		message.type = 1;
-		message.flag = (is_terminate) ? 0 : 1;
+		message.terminate = is_terminate;
 		message.address = address;
-		message.page = request_page;
+		message.page = page;
 		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
 
 		if (is_terminate) break;

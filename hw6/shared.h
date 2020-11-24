@@ -46,7 +46,7 @@ typedef struct {
 	long type;
 	pid_t pid;
 	int spid;
-	int flag;
+	bool terminate;
 	unsigned int address;
 	unsigned int page;
 	char text[BUFFER_LENGTH];

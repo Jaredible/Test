@@ -60,28 +60,26 @@ void printSummary();
 static char *programName;
 static volatile bool quit = false;
 
-static int scheme = 0;
-static Queue *queue;
-static Time nextSpawn;
-
 static int shmid = -1;
 static int msqid = -1;
 static int semid = -1;
 static System *system = NULL;
 static Message message;
 
+static int scheme = SIMPLE;
+static Queue *queue; /* Process queue */
+static List *reference; /* Reference string */
+static List *stack; /* LRU stack */
+static Time nextSpawn;
 static int activeCount = 0;
 static int spawnCount = 0;
 static int exitCount = 0;
 static pid_t pids[PROCESSES_MAX];
+static int memory[MAX_FRAME];
 
 static int memoryaccess_number = 0;
 static int pagefault_number = 0;
 static unsigned int total_access_time = 0;
-static unsigned char main_memory[MAX_FRAME];
-static int last_frame = -1;
-static List *reference_string;
-static List *lru_stack;
 
 int main(int argc, char *argv[]) {
 	init(argc, argv);
@@ -135,8 +133,8 @@ int main(int argc, char *argv[]) {
 	nextSpawn.ns = 0;
 	initSystem();
 	queue = queue_create();
-	reference_string = list_create();
-	lru_stack = list_create();
+	reference = list_create();
+	stack = list_create();
 
 	/* Start simulating */
 	simulate();
@@ -214,18 +212,19 @@ void handleProcesses() {
 
 		advanceClock(0);
 
-		if (message.flag == 0) {
+		if (message.terminate) {
 			log("p%d terminated\n", message.spid);
 
 			int i;
 			for (i = 0; i < MAX_PAGE; i++) {
 				if (system->ptable[spid].ptable[i].frame != -1) {
 					int frame = system->ptable[spid].ptable[i].frame;
-					list_remove(reference_string, spid, i, frame);
-					main_memory[frame / 8] &= ~(1 << (frame % 8));
+					list_remove(reference, spid, i, frame);
+					memory[frame / 8] &= ~(1 << (frame % 8));
 				}
 			}
 		} else {
+			int last_frame;
 			total_access_time += advanceClock(0);
 			queue_push(temp, spid);
 
@@ -242,13 +241,13 @@ void handleProcesses() {
 				flog("p%d segfaulted at %d-%d\n", spid, address, request_page);
 				pagefault_number++;
 
-				total_access_time += advanceClock(14000000);
+				total_access_time += advanceClock(10 * 1000000);
 
 				bool is_memory_open = false;
 				int count_frame = 0;
 				while (true) {
 					last_frame = (last_frame + 1) % MAX_FRAME;
-					uint32_t frame = main_memory[last_frame / 8] & (1 << (last_frame % 8));
+					uint32_t frame = memory[last_frame / 8] & (1 << (last_frame % 8));
 					if (frame == 0)
 					{
 						is_memory_open = true;
@@ -262,17 +261,18 @@ void handleProcesses() {
 					count_frame++;
 				}
 
+				/* Check if there is still space in memory */
 				if (is_memory_open == true) {
 					system->ptable[spid].ptable[request_page].frame = last_frame;
 					system->ptable[spid].ptable[request_page].valid = 1;
 
-					main_memory[last_frame / 8] |= (1 << (last_frame % 8));
+					memory[last_frame / 8] |= (1 << (last_frame % 8));
 
-					list_add(reference_string, spid, request_page, last_frame);
+					list_add(reference, spid, request_page, last_frame);
 					flog("p%d allocated frame %d\n", message.spid, last_frame);
 
-					list_remove(lru_stack, spid, request_page, last_frame);
-					list_add(lru_stack, spid, request_page, last_frame);
+					list_remove(stack, spid, request_page, last_frame);
+					list_add(stack, spid, request_page, last_frame);
 
 					if (system->ptable[spid].ptable[request_page].protection == 0) {
 						flog("p%d given data from frame %d at %d-%d\n", spid, system->ptable[spid].ptable[request_page].frame, address, request_page);
@@ -286,10 +286,10 @@ void handleProcesses() {
 
 					flog("%d-%d is not in frame\n", address, request_page);
 
-					unsigned int index = lru_stack->head->index;
-					unsigned int page = lru_stack->head->page;
+					unsigned int index = stack->head->index;
+					unsigned int page = stack->head->page;
 					unsigned int address = page << 10;
-					unsigned int frame = lru_stack->head->frame;
+					unsigned int frame = stack->head->frame;
 
 					if (system->ptable[index].ptable[page].dirty == 1) {
 						/* Modified information is written back to disk */
@@ -303,10 +303,10 @@ void handleProcesses() {
 					system->ptable[spid].ptable[request_page].frame = frame;
 					system->ptable[spid].ptable[request_page].dirty = 0;
 					system->ptable[spid].ptable[request_page].valid = 1;
-					list_remove(lru_stack, index, page, frame);
-					list_remove(reference_string, index, page, frame);
-					list_add(lru_stack, spid, request_page, frame);
-					list_add(reference_string, spid, request_page, frame);
+					list_remove(stack, index, page, frame);
+					list_remove(reference, index, page, frame);
+					list_add(stack, spid, request_page, frame);
+					list_add(reference, spid, request_page, frame);
 
 					if (system->ptable[spid].ptable[request_page].protection == 1) {
 						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
@@ -316,33 +316,29 @@ void handleProcesses() {
 				}
 			} else {
 				int frame = system->ptable[spid].ptable[request_page].frame;
-				list_remove(lru_stack, spid, request_page, frame);
-				list_add(lru_stack, spid, request_page, frame);
+				list_remove(stack, spid, request_page, frame);
+				list_add(stack, spid, request_page, frame);
 
 				if (system->ptable[spid].ptable[request_page].protection == 0) {
-					log("%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
-								programName, address, request_page,
-								system->ptable[spid].ptable[request_page].frame,
-								message.spid, message.pid,
-								system->clock.s, system->clock.ns);
+					flog("%d-%d in frame %d, giving data to p%d\n", address, request_page, system->ptable[spid].ptable[request_page].frame, message.spid);
 				} else {
-					log("%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
-								programName, address, request_page,
-								system->ptable[spid].ptable[request_page].frame,
-								system->clock.s, system->clock.ns);
+					flog("%d-%d in frame %d, writing data to it\n", address, request_page, system->ptable[spid].ptable[request_page].frame);
 				}
 			}
 		}
 
-		next = (next->next != NULL) ? next->next : NULL;
-
+		/* Reset message */
 		message.type = -1;
 		message.spid = -1;
 		message.pid = -1;
 		message.flag = -1;
 		message.page = -1;
+
+		/* On to the next user process to simulate */
+		next = (next->next != NULL) ? next->next : NULL;
 	}
 
+	/* Reset the current queue */
 	while (!queue_empty(queue))
 		queue_pop(queue);
 	while (!queue_empty(temp)) {
