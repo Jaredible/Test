@@ -230,17 +230,17 @@ void handleProcesses() {
 			totalAccessTime += advanceClock(0);
 			queue_push(temp, spid);
 
-			unsigned int address = message.address;
-			unsigned int request_page = message.page;
-			if (system->ptable[spid].ptable[request_page].protection == 0) {
-				flog("p%d requesting address read at %d-%d\n", message.spid, address, request_page);
+			unsigned int requestedAddress = message.address;
+			unsigned int requestedPage = message.page;
+			if (system->ptable[spid].ptable[requestedPage].protection == 0) {
+				flog("p%d requesting address read at %d-%d\n", message.spid, requestedAddress, requestedPage);
 			} else {
-				flog("p%d requesting address write at %d-%d\n", message.spid, address, request_page);
+				flog("p%d requesting address write at %d-%d\n", message.spid, requestedAddress, requestedPage);
 			}
 			memoryAccessCount++;
 
-			if (system->ptable[spid].ptable[request_page].valid == 0) {
-				flog("p%d segfaulted at %d-%d\n", spid, address, request_page);
+			if (system->ptable[spid].ptable[requestedPage].valid == 0) {
+				flog("p%d segfaulted at %d-%d\n", spid, requestedAddress, requestedPage);
 
 				pageFaultCount++;
 
@@ -260,28 +260,28 @@ void handleProcesses() {
 
 				/* Check if there is still space in memory */
 				if (isMemoryOpen == true) {
-					system->ptable[spid].ptable[request_page].frame = previousFrame;
-					system->ptable[spid].ptable[request_page].valid = 1;
+					system->ptable[spid].ptable[requestedPage].frame = previousFrame;
+					system->ptable[spid].ptable[requestedPage].valid = 1;
 
 					memory[previousFrame / 8] |= (1 << (previousFrame % 8));
 
-					list_add(reference, spid, request_page, previousFrame);
+					list_add(reference, spid, requestedPage, previousFrame);
 					flog("p%d allocated frame %d\n", message.spid, previousFrame);
 
-					list_remove(stack, spid, request_page, previousFrame);
-					list_add(stack, spid, request_page, previousFrame);
+					list_remove(stack, spid, requestedPage, previousFrame);
+					list_add(stack, spid, requestedPage, previousFrame);
 
-					if (system->ptable[spid].ptable[request_page].protection == 0) {
-						flog("p%d given data from frame %d at %d-%d\n", spid, system->ptable[spid].ptable[request_page].frame, address, request_page);
-						system->ptable[spid].ptable[request_page].dirty = 0;
+					if (system->ptable[spid].ptable[requestedPage].protection == 0) {
+						flog("p%d given data from frame %d at %d-%d\n", spid, system->ptable[spid].ptable[requestedPage].frame, requestedAddress, requestedPage);
+						system->ptable[spid].ptable[requestedPage].dirty = 0;
 					} else {
-						flog("p%d writing data to frame %d at %d-%d\n", spid, system->ptable[spid].ptable[request_page].frame, address, request_page);
-						system->ptable[spid].ptable[request_page].dirty = 1;
+						flog("p%d writing data to frame %d at %d-%d\n", spid, system->ptable[spid].ptable[requestedPage].frame, requestedAddress, requestedPage);
+						system->ptable[spid].ptable[requestedPage].dirty = 1;
 					}
 				} else {
 					/* Handle when memory is full */
 
-					flog("%d-%d is not in frame\n", address, request_page);
+					flog("%d-%d is not in frame\n", requestedAddress, requestedPage);
 
 					unsigned int index = stack->head->index;
 					unsigned int page = stack->head->page;
@@ -297,29 +297,29 @@ void handleProcesses() {
 					system->ptable[index].ptable[page].frame = -1;
 					system->ptable[index].ptable[page].dirty = 0;
 					system->ptable[index].ptable[page].valid = 0;
-					system->ptable[spid].ptable[request_page].frame = frame;
-					system->ptable[spid].ptable[request_page].dirty = 0;
-					system->ptable[spid].ptable[request_page].valid = 1;
+					system->ptable[spid].ptable[requestedPage].frame = frame;
+					system->ptable[spid].ptable[requestedPage].dirty = 0;
+					system->ptable[spid].ptable[requestedPage].valid = 1;
 					list_remove(stack, index, page, frame);
 					list_remove(reference, index, page, frame);
-					list_add(stack, spid, request_page, frame);
-					list_add(reference, spid, request_page, frame);
+					list_add(stack, spid, requestedPage, frame);
+					list_add(reference, spid, requestedPage, frame);
 
-					if (system->ptable[spid].ptable[request_page].protection == 1) {
+					if (system->ptable[spid].ptable[requestedPage].protection == 1) {
 						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, previousFrame);
-						log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n", programName, message.spid, message.pid, address, request_page);
-						system->ptable[spid].ptable[request_page].dirty = 1;
+						log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n", programName, message.spid, message.pid, address, requestedPage);
+						system->ptable[spid].ptable[requestedPage].dirty = 1;
 					}
 				}
 			} else {
-				int frame = system->ptable[spid].ptable[request_page].frame;
-				list_remove(stack, spid, request_page, frame);
-				list_add(stack, spid, request_page, frame);
+				int frame = system->ptable[spid].ptable[requestedPage].frame;
+				list_remove(stack, spid, requestedPage, frame);
+				list_add(stack, spid, requestedPage, frame);
 
-				if (system->ptable[spid].ptable[request_page].protection == 0) {
-					flog("%d-%d in frame %d, giving data to p%d\n", address, request_page, system->ptable[spid].ptable[request_page].frame, message.spid);
+				if (system->ptable[spid].ptable[requestedPage].protection == 0) {
+					flog("%d-%d in frame %d, giving data to p%d\n", requestedAddress, requestedPage, system->ptable[spid].ptable[requestedPage].frame, message.spid);
 				} else {
-					flog("%d-%d in frame %d, writing data to it\n", address, request_page, system->ptable[spid].ptable[request_page].frame);
+					flog("%d-%d in frame %d, writing data to it\n", requestedAddress, requestedPage, system->ptable[spid].ptable[requestedPage].frame);
 				}
 			}
 		}
