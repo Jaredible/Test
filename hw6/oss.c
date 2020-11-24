@@ -222,13 +222,13 @@ void handleProcesses() {
 				if (system->ptable[spid].ptable[i].frame != -1)
 				{
 					int frame = system->ptable[spid].ptable[i].frame;
-					list_remove(reference_string, index, i, frame);
+					list_remove(reference_string, spid, i, frame);
 					main_memory[frame / 8] &= ~(1 << (frame % 8));
 				}
 			}
 		} else {
 			total_access_time += advanceClock(0);
-			queue_push(temp, index);
+			queue_push(temp, spid);
 
 			unsigned int address = message.address;
 			unsigned int request_page = message.page;
@@ -376,7 +376,6 @@ void handleProcesses() {
 /* Attempts to spawn a new user process, but depends on the simulation's current state */
 void trySpawnProcess() {
 	/* Guard statements checking if we can even attempt to spawn a user process */
-	int spawn_nano = rand() % 500000000 + 1000000;
 	if (activeCount >= PROCESSES_MAX) return;
 	if (spawnCount >= PROCESSES_TOTAL) return;
 	if (nextSpawn.ns < (rand() % (500 + 1)) * (1000000 + 1)) return;
