@@ -159,6 +159,7 @@ int main(int argc, char *argv[]) {
 					crash("execl");
 				}
 
+				activeCount++;
 				spawnCount++;
 
 				initPCB(&system->ptable[last_index], last_index, pid);
@@ -591,7 +592,7 @@ void printSummary() {
 	double pg_f_p_mem = (double)pagefault_number / (double)memoryaccess_number;
 	double avg_m = (double)total_access_time / (double)memoryaccess_number;
 	avg_m /= 1000000.0;
-	
+
 	log("- Master PID: %d\n", getpid());
 	log("- Number of forking during this execution: %d\n", spawnCount);
 	log("- Final simulation time of this execution: %d.%d\n", system->clock.s, system->clock.ns);
