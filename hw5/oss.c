@@ -202,7 +202,7 @@ void handleProcesses() {
 		/* Send a message to a user process saying it's your turn to "run" */
 		int spid = next->index;
 		message.type = system->ptable[spid].pid;
-		message.spid = index;
+		message.spid = spid;
 		message.pid = system->ptable[spid].pid;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
