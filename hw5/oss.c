@@ -490,16 +490,19 @@ void usage(int status) {
 void registerSignalHandlers() {
 	struct sigaction sa;
 
+	/* Set up SIGINT handler */
 	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
 	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
 	if (sigaction(SIGINT, &sa, NULL) == -1) crash("sigaction");
 
+	/* Set up SIGALRM handler */
 	if (sigemptyset(&sa.sa_mask) == -1) crash("sigemptyset");
 	sa.sa_handler = &signalHandler;
 	sa.sa_flags = SA_RESTART;
 	if (sigaction(SIGALRM, &sa, NULL) == -1) crash("sigaction");
 
+	/* Initialize timout timer */
 	timer(TIMEOUT);
 }
 
@@ -508,6 +511,7 @@ void signalHandler(int sig) {
 	else if (sig == SIGINT) {
 		printSummary();
 
+		/* Kill all running user processes */
 		int i;
 		for (i = 0; i < PROCESSES_MAX; i++)
 			if (pids[i] > 0) kill(pids[i], SIGTERM);
