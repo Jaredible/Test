@@ -451,7 +451,7 @@ void usage(int status) {
 	if (status != EXIT_SUCCESS) fprintf(stderr, "Try '%s -h' for more information\n", programName);
 	else {
 		printf("Usage: %s [-m]\n", programName);
-		printf("    -m : Request scheme (default 1)\n");
+		printf("    -m : Request scheme (1 = SIMPLE, 2 = WEIGHTED) (default 1)\n");
 	}
 	exit(status);
 }

@@ -12,9 +12,9 @@ To run this program:
 ./oss
 ```
 
-To run this program in verbose mode:
+To run this program using a particular request scheme (1 = SIMPLE, 2 = WEIGHTED):
 ```
-./oss -v
+./oss -m scheme
 ```
 
 To cleanup:
@@ -23,5 +23,54 @@ make clean
 ```
 
 #### Issues
+- Program may pause mid-execution
 
 #### Changelog
+
+commit 7e959069051ad3302a20d4cc4019f1888861f12d
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Tue Nov 24 23:30:53 2020 -0600
+
+    Updated README
+
+commit ab69ec97c328b7afa43bfecfa61bcf073e817396
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Tue Nov 24 18:10:57 2020 -0600
+
+    Implemented weighted requests
+
+commit fa54704a918c43a94abdfd4eb6d725c3b49a1c24
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Mon Nov 20 16:23:12 2020 -0600
+
+    Fixed page-table/request bugs
+
+commit 52d0f295b96823ea0ad0edd732eef77b0bb26151
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Sun Nov 19 18:55:33 2020 -0600
+
+    Implemented page-table
+
+commit bb56549626d1b0fb2573f9638731d6ce60ea5c26
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Sat Nov 19 15:21:17 2020 -0600
+
+    Implemented process requesting reading/writing
+
+commit fa54704a918c43a94abdfd4eb6d725c3b49a1c24
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Fri Nov 18 22:59:41 2020 -0600
+
+    Implemented process simulation
+
+commit c22bdf8a15e5ecb4138ade7cae7eb00dc6df11d1
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Thu Nov 18 21:58:33 2020 -0600
+
+    Updated README
+
+commit e9ddc8b71affc00f2e77ae500709af30cf125f49
+Author: Jared Diehl <diehl@hoare7.cs.umsl.edu>
+Date:   Wed Nov 18 20:18:25 2020 -0600
+
+    Initial setup
