@@ -214,7 +214,7 @@ void handleProcesses() {
 		advanceClock(0);
 
 		if (message.terminate) {
-			log("p%d terminated\n", message.spid);
+			flog("p%d terminated\n", message.spid);
 
 			/* Free process' frames */
 			int i;
@@ -593,6 +593,7 @@ void printSummary() {
 	double pageFaultsPerMemoryAccess = (double) pageFaultCount / (double) memoryAccessCount;
 	double averageMemoryAccessSpeed = ((double) totalAccessTime / (double) memoryAccessCount) / (double) 1000000;
 
+	log("\n\SUMMARY");
 	log("Total processes executed: %d\n", spawnCount);
 	log("System time: %d.%d\n", system->clock.s, system->clock.ns);
 	log("Memory access count: %d\n", memoryAccessCount);
