@@ -89,6 +89,219 @@ void crash(char*);
 
 void initSystem();
 
+void trySpawnProcess() {
+	int spawn_nano = rand() % 500000000 + 1000000;
+	if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= spawn_nano && !quit) {
+		nextSpawn.ns = 0;
+
+		int spid = findAvailablePID();
+		if (spid >= 0) spawnProcess(spid);
+	}
+}
+
+void spawnProcess(int spid) {
+	pid_t pid = fork();
+	pids[spid] = pid;
+	if (pid == -1) crash("fork");
+	else if (pid == 0) {
+		char arg0[BUFFER_LENGTH];
+		char arg1[BUFFER_LENGTH];
+		sprintf(arg0, "%d", spid);
+		sprintf(arg1, "%d", scheme);
+		execl("./user", "user", arg0, arg1, (char*) NULL);
+		crash("execl");
+	}
+
+	activeCount++;
+	spawnCount++;
+
+	initPCB(pid, spid);
+
+	queue_push(queue, spid);
+
+	log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
+				system->ptable[spid].spid, system->ptable[spid].pid, system->clock.s, system->clock.ns);
+}
+
+void handleProcesses() {
+	QueueNode *next;
+	Queue *temp = queue_create();
+
+	next = queue->front;
+	while (next != NULL) {
+		advanceClock(0);
+
+		int index = next->index;
+		message.type = system->ptable[index].pid;
+		message.spid = index;
+		message.pid = system->ptable[index].pid;
+		msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
+
+		msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
+
+		advanceClock(0);
+
+		if (message.flag == 0) {
+			log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
+						programName, message.spid, message.pid, system->clock.s, system->clock.ns);
+
+			int i;
+			for (i = 0; i < MAX_PAGE; i++)
+			{
+				if (system->ptable[index].ptable[i].frame != -1)
+				{
+					int frame = system->ptable[index].ptable[i].frame;
+					list_remove(reference_string, index, i, frame);
+					main_memory[frame / 8] &= ~(1 << (frame % 8));
+				}
+			}
+		} else {
+			total_access_time += advanceClock(0);
+			queue_push(temp, index);
+
+			unsigned int address = message.address;
+			unsigned int request_page = message.page;
+			if (system->ptable[index].ptable[request_page].protection == 0) {
+				log("%s: process (%d) [%d] requesting read of address (%d) [%d] at time %d:%d\n",
+							programName, message.spid, message.pid,
+							address, request_page,
+							system->clock.s, system->clock.ns);
+			} else {
+				log("%s: process (%d) [%d] requesting write of address (%d) [%d] at time %d:%d\n",
+							programName, message.spid, message.pid,
+							address, request_page,
+							system->clock.s, system->clock.ns);
+			}
+			memoryaccess_number++;
+
+			if (system->ptable[index].ptable[request_page].valid == 0) {
+				log("%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
+							programName, address, request_page);
+				pagefault_number++;
+
+				total_access_time += advanceClock(14000000);
+
+				bool is_memory_open = false;
+				int count_frame = 0;
+				while (true) {
+					last_frame = (last_frame + 1) % MAX_FRAME;
+					uint32_t frame = main_memory[last_frame / 8] & (1 << (last_frame % 8));
+					if (frame == 0)
+					{
+						is_memory_open = true;
+						break;
+					}
+
+					if (count_frame >= MAX_FRAME - 1)
+					{
+						break;
+					}
+					count_frame++;
+				}
+
+				if (is_memory_open == true) {
+					system->ptable[index].ptable[request_page].frame = last_frame;
+					system->ptable[index].ptable[request_page].valid = 1;
+
+					main_memory[last_frame / 8] |= (1 << (last_frame % 8));
+
+					list_add(reference_string, index, request_page, last_frame);
+					log("%s: allocated frame [%d] to PID (%d) [%d]\n",
+								programName, last_frame, message.spid, message.pid);
+
+					list_remove(lru_stack, index, request_page, last_frame);
+					list_add(lru_stack, index, request_page, last_frame);
+
+					if (system->ptable[index].ptable[request_page].protection == 0) {
+						log("%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
+									programName, address, request_page,
+									system->ptable[index].ptable[request_page].frame,
+									message.spid, message.pid,
+									system->clock.s, system->clock.ns);
+
+						system->ptable[index].ptable[request_page].dirty = 0;
+					} else {
+						log("%s: address (%d) [%d] in frame (%d), writing data to frame at time %d:%d\n",
+									programName, address, request_page,
+									system->ptable[index].ptable[request_page].frame,
+									system->clock.s, system->clock.ns);
+
+						system->ptable[index].ptable[request_page].dirty = 1;
+					}
+				} else {
+					log("%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
+								programName, address, request_page);
+
+					unsigned int lru_index = lru_stack->head->index;
+					unsigned int lru_page = lru_stack->head->page;
+					unsigned int lru_address = lru_page << 10;
+					unsigned int lru_frame = lru_stack->head->frame;
+
+					if (system->ptable[lru_index].ptable[lru_page].dirty == 1) {
+						log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
+									programName, lru_address, lru_page);
+					}
+
+					system->ptable[lru_index].ptable[lru_page].frame = -1;
+					system->ptable[lru_index].ptable[lru_page].dirty = 0;
+					system->ptable[lru_index].ptable[lru_page].valid = 0;
+
+					system->ptable[index].ptable[request_page].frame = lru_frame;
+					system->ptable[index].ptable[request_page].dirty = 0;
+					system->ptable[index].ptable[request_page].valid = 1;
+
+					list_remove(lru_stack, lru_index, lru_page, lru_frame);
+					list_remove(reference_string, lru_index, lru_page, lru_frame);
+					list_add(lru_stack, index, request_page, lru_frame);
+					list_add(reference_string, index, request_page, lru_frame);
+
+					if (system->ptable[index].ptable[request_page].protection == 1) {
+						log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
+						log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n",
+									programName, message.spid, message.pid, address, request_page);
+						system->ptable[index].ptable[request_page].dirty = 1;
+					}
+				}
+			} else {
+				int frame = system->ptable[index].ptable[request_page].frame;
+				list_remove(lru_stack, index, request_page, frame);
+				list_add(lru_stack, index, request_page, frame);
+
+				if (system->ptable[index].ptable[request_page].protection == 0) {
+					log("%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
+								programName, address, request_page,
+								system->ptable[index].ptable[request_page].frame,
+								message.spid, message.pid,
+								system->clock.s, system->clock.ns);
+				} else {
+					log("%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
+								programName, address, request_page,
+								system->ptable[index].ptable[request_page].frame,
+								system->clock.s, system->clock.ns);
+				}
+			}
+		}
+
+		next = (next->next != NULL) ? next->next : NULL;
+
+		message.type = -1;
+		message.spid = -1;
+		message.pid = -1;
+		message.flag = -1;
+		message.page = -1;
+	}
+
+	while (!queue_empty(queue))
+		queue_pop(queue);
+	while (!queue_empty(temp)) {
+		int i = temp->front->index;
+		queue_push(queue, i);
+		queue_pop(temp);
+	}
+
+	free(temp);
+}
+
 int main(int argc, char *argv[]) {
 	init(argc, argv);
 
@@ -147,227 +360,11 @@ int main(int argc, char *argv[]) {
 	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
 
 	while (true) {
-		int spawn_nano = rand() % 500000000 + 1000000;
-		if (activeCount < PROCESSES_MAX && spawnCount < PROCESSES_TOTAL && nextSpawn.ns >= spawn_nano && !quit) {
-			nextSpawn.ns = 0;
-
-			int spid = findAvailablePID();
-			if (spid >= 0) {
-				pid_t pid = fork();
-				pids[spid] = pid;
-				if (pid == -1) crash("fork");
-				else if (pid == 0) {
-					char arg0[BUFFER_LENGTH];
-					char arg1[BUFFER_LENGTH];
-					sprintf(arg0, "%d", spid);
-					sprintf(arg1, "%d", scheme);
-					execl("./user", "user", arg0, arg1, (char*) NULL);
-					crash("execl");
-				}
-
-				activeCount++;
-				spawnCount++;
-
-				initPCB(pid, spid);
-
-				queue_push(queue, spid);
-
-				log("%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", programName,
-							system->ptable[spid].spid, system->ptable[spid].pid, system->clock.s, system->clock.ns);
-			}
-		}
+		trySpawnProcess();
 
 		advanceClock(0);
 
-		QueueNode *next;
-		Queue *temp = queue_create();
-
-		next = queue->front;
-		while (next != NULL)
-		{
-			advanceClock(0);
-
-			int index = next->index;
-			message.type = system->ptable[index].pid;
-			message.spid = index;
-			message.pid = system->ptable[index].pid;
-			msgsnd(msqid, &message, (sizeof(Message) - sizeof(long)), 0);
-
-			msgrcv(msqid, &message, (sizeof(Message) - sizeof(long)), 1, 0);
-
-			advanceClock(0);
-
-			if (message.flag == 0)
-			{
-				log("%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-						   programName, message.spid, message.pid, system->clock.s, system->clock.ns);
-
-				int i;
-				for (i = 0; i < MAX_PAGE; i++)
-				{
-					if (system->ptable[index].ptable[i].frame != -1)
-					{
-						int frame = system->ptable[index].ptable[i].frame;
-						list_remove(reference_string, index, i, frame);
-						main_memory[frame / 8] &= ~(1 << (frame % 8));
-					}
-				}
-			}
-			else
-			{
-				total_access_time += advanceClock(0);
-				queue_push(temp, index);
-
-				unsigned int address = message.address;
-				unsigned int request_page = message.page;
-				if (system->ptable[index].ptable[request_page].protection == 0)
-				{
-					log("%s: process (%d) [%d] requesting read of address (%d) [%d] at time %d:%d\n",
-							   programName, message.spid, message.pid,
-							   address, request_page,
-							   system->clock.s, system->clock.ns);
-				}
-				else
-				{
-					log("%s: process (%d) [%d] requesting write of address (%d) [%d] at time %d:%d\n",
-							   programName, message.spid, message.pid,
-							   address, request_page,
-							   system->clock.s, system->clock.ns);
-				}
-				memoryaccess_number++;
-
-				if (system->ptable[index].ptable[request_page].valid == 0)
-				{
-					log("%s: address (%d) [%d] is not in a frame, PAGEFAULT\n",
-							   programName, address, request_page);
-					pagefault_number++;
-
-					total_access_time += advanceClock(14000000);
-
-					bool is_memory_open = false;
-					int count_frame = 0;
-					while (1)
-					{
-						last_frame = (last_frame + 1) % MAX_FRAME;
-						uint32_t frame = main_memory[last_frame / 8] & (1 << (last_frame % 8));
-						if (frame == 0)
-						{
-							is_memory_open = true;
-							break;
-						}
-
-						if (count_frame >= MAX_FRAME - 1)
-						{
-							break;
-						}
-						count_frame++;
-					}
-
-					if (is_memory_open == true)
-					{
-						system->ptable[index].ptable[request_page].frame = last_frame;
-						system->ptable[index].ptable[request_page].valid = 1;
-
-						main_memory[last_frame / 8] |= (1 << (last_frame % 8));
-
-						list_add(reference_string, index, request_page, last_frame);
-						log("%s: allocated frame [%d] to PID (%d) [%d]\n",
-								   programName, last_frame, message.spid, message.pid);
-
-						list_remove(lru_stack, index, request_page, last_frame);
-						list_add(lru_stack, index, request_page, last_frame);
-
-						if (system->ptable[index].ptable[request_page].protection == 0)
-						{
-							log("%s: address (%d) [%d] in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
-									   programName, address, request_page,
-									   system->ptable[index].ptable[request_page].frame,
-									   message.spid, message.pid,
-									   system->clock.s, system->clock.ns);
-
-							system->ptable[index].ptable[request_page].dirty = 0;
-						}
-						else
-						{
-							log("%s: address (%d) [%d] in frame (%d), writing data to frame at time %d:%d\n",
-									   programName, address, request_page,
-									   system->ptable[index].ptable[request_page].frame,
-									   system->clock.s, system->clock.ns);
-
-							system->ptable[index].ptable[request_page].dirty = 1;
-						}
-					} else {
-						log("%s: address (%d) [%d] is not in a frame, memory is full. Invoking page replacement...\n",
-								   programName, address, request_page);
-
-						unsigned int lru_index = lru_stack->head->index;
-						unsigned int lru_page = lru_stack->head->page;
-						unsigned int lru_address = lru_page << 10;
-						unsigned int lru_frame = lru_stack->head->frame;
-
-						if (system->ptable[lru_index].ptable[lru_page].dirty == 1) {
-							log("%s: address (%d) [%d] was modified. Modified information is written back to the disk\n",
-									   programName, lru_address, lru_page);
-						}
-
-						system->ptable[lru_index].ptable[lru_page].frame = -1;
-						system->ptable[lru_index].ptable[lru_page].dirty = 0;
-						system->ptable[lru_index].ptable[lru_page].valid = 0;
-
-						system->ptable[index].ptable[request_page].frame = lru_frame;
-						system->ptable[index].ptable[request_page].dirty = 0;
-						system->ptable[index].ptable[request_page].valid = 1;
-
-						list_remove(lru_stack, lru_index, lru_page, lru_frame);
-						list_remove(reference_string, lru_index, lru_page, lru_frame);
-						list_add(lru_stack, index, request_page, lru_frame);
-						list_add(reference_string, index, request_page, lru_frame);
-
-						if (system->ptable[index].ptable[request_page].protection == 1)
-						{
-							log("%s: dirty bit of frame (%d) set, adding additional time to the clock\n", programName, last_frame);
-							log("%s: indicating to process (%d) [%d] that write has happend to address (%d) [%d]\n",
-									   programName, message.spid, message.pid, address, request_page);
-							system->ptable[index].ptable[request_page].dirty = 1;
-						}
-					}
-				} else {
-					int frame = system->ptable[index].ptable[request_page].frame;
-					list_remove(lru_stack, index, request_page, frame);
-					list_add(lru_stack, index, request_page, frame);
-
-					if (system->ptable[index].ptable[request_page].protection == 0) {
-						log("%s: address (%d) [%d] is already in frame (%d), giving data to process (%d) [%d] at time %d:%d\n",
-								   programName, address, request_page,
-								   system->ptable[index].ptable[request_page].frame,
-								   message.spid, message.pid,
-								   system->clock.s, system->clock.ns);
-					} else {
-						log("%s: address (%d) [%d] is already in frame (%d), writing data to frame at time %d:%d\n",
-								   programName, address, request_page,
-								   system->ptable[index].ptable[request_page].frame,
-								   system->clock.s, system->clock.ns);
-					}
-				}
-			}
-
-			next = (next->next != NULL) ? next->next : NULL;
-
-			message.type = -1;
-			message.spid = -1;
-			message.pid = -1;
-			message.flag = -1;
-			message.page = -1;
-		}
-
-		while (!queue_empty(queue))
-			queue_pop(queue);
-		while (!queue_empty(temp)) {
-			int i = temp->front->index;
-			queue_push(queue, i);
-			queue_pop(temp);
-		}
-		free(temp);
+		handleProcesses();
 
 		advanceClock(0);
 
