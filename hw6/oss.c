@@ -302,6 +302,31 @@ void handleProcesses() {
 	free(temp);
 }
 
+void simulate() {
+	while (true) {
+		trySpawnProcess();
+		advanceClock(0);
+		handleProcesses();
+		advanceClock(0);
+
+		int status;
+		pid_t pid = waitpid(-1, &status, WNOHANG);
+		if (pid > 0) {
+			int spid = WEXITSTATUS(status);
+			pids[spid] = 0;
+			activeCount--;
+			exitCount++;
+		}
+
+		/* Stop simulating if the last user process has exited */
+		if (quit) {
+			if (exitCount == spawnCount) break;
+		} else {
+			if (exitCount == PROCESSES_TOTAL) break;
+		}
+	}
+}
+
 int main(int argc, char *argv[]) {
 	init(argc, argv);
 
@@ -336,57 +361,33 @@ int main(int argc, char *argv[]) {
 	
 	if (!ok) usage(EXIT_FAILURE);
 
-	initIPC();
+	registerSignalHandlers();
 
-	memset(pids, 0, sizeof(pids));
-
-	system->clock.s = 0;
-	system->clock.ns = 0;
-	nextSpawn.s = 0;
-	nextSpawn.ns = 0;
-
+	/* Clear log file */
 	FILE *fp;
 	if ((fp = fopen(PATH_LOG, "w")) == NULL) crash("fopen");
 	if (fclose(fp) == EOF) crash("fclose");
 
+	/* Setup simulation */
+	initIPC();
+	memset(pids, 0, sizeof(pids));
+	system->clock.s = 0;
+	system->clock.ns = 0;
+	nextSpawn.s = 0;
+	nextSpawn.ns = 0;
 	initSystem();
-
 	queue = queue_create();
 	reference_string = list_create();
 	lru_stack = list_create();
+	initDescriptor();
+	printDescriptor();
 
-	registerSignalHandlers();
-
-	fprintf(stderr, "Using Least Recently Use (LRU) algorithm.\n");
-
-	while (true) {
-		trySpawnProcess();
-
-		advanceClock(0);
-
-		handleProcesses();
-
-		advanceClock(0);
-
-		int status;
-		pid_t pid = waitpid(-1, &status, WNOHANG);
-		if (pid > 0) {
-			int spid = WEXITSTATUS(status);
-			pids[spid] = 0;
-			activeCount--;
-			exitCount++;
-		}
-
-		/* Stop simulating if the last user process has exited */
-		if (quit) {
-			if (exitCount == spawnCount) break;
-		} else {
-			if (exitCount == PROCESSES_TOTAL) break;
-		}
-	}
+	/* Start simulating */
+	simulate();
 
 	printSummary();
 
+	/* Cleanup resources */
 	freeIPC();
 
 	return ok ? EXIT_SUCCESS  : EXIT_FAILURE;
