@@ -217,7 +217,7 @@ void handleProcesses() {
 		advanceClock();
 
 		/* Check if user process has terminated */
-		if (message.terminate == 0) {
+		if (message.terminate) {
 			log("%s: [%d.%d] p%d terminating\n", basename(programName), system->clock.s, system->clock.ns, message.spid);
 
 			/* Remove user process from queue */
@@ -513,7 +513,6 @@ void signalHandler(int sig) {
 			if (pids[i] > 0) kill(pids[i], SIGTERM);
 		while (wait(NULL) > 0);
 
-		printf("HERE\n");
 		freeIPC();
 		exit(EXIT_SUCCESS);
 	}

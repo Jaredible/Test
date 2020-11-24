@@ -99,9 +99,9 @@ int main(int argc, char **argv) {
 
 		/* Send that decision to OSS */
 		message.type = 1;
-		message.terminate = terminating ? 0 : 1;
-		message.request = requesting ? true : false;
-		message.release = terminating ? true : false;
+		message.terminate = terminating;
+		message.request = requesting;
+		message.release = terminating;
 		msgsnd(msqid, &message, sizeof(Message), 0);
 
 		/* Act upon that decision */
