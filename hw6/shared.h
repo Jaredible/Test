@@ -15,9 +15,9 @@
 #define BUFFER_LENGTH 4096
 
 #define KEY_PATHNAME "."
-#define KEY_ID_CLOCK 0
-#define KEY_ID_RESOURCE_DESCRIPTOR 1
-#define KEY_ID_MESSAGE_QUEUE 2
+#define KEY_ID_SYSTEM 0
+#define KEY_ID_MESSAGE_QUEUE 1
+#define KEY_ID_SEMAPHORE 2
 #define PERMS (S_IRUSR | S_IWUSR)
 
 #define PATH_LOG "output.log"
