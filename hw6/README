@@ -2,6 +2,8 @@ S4760 Project 6: Memory Management
 
 **OSS (operating system simulator)** is a program that simulates an operating system.
 
+Logging of address and page are represented in the following format: #####-##
+
 To build this program:
 ```
 make
