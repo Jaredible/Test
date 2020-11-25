@@ -313,8 +313,8 @@ void handleProcesses() {
 					list_add(reference, spid, requestedPage, frame);
 
 					if (system->ptable[spid].ptable[requestedPage].protection == 1) {
-						slog("frame %d dirty bit set\n", programName, previousFrame);
 						system->ptable[spid].ptable[requestedPage].dirty = 1;
+						flog("frame %d dirty bit set\n", programName, previousFrame);
 					}
 				}
 			} else {
