@@ -7,7 +7,6 @@
 	Each user process generates memory references to one of its locations.
 ==================================================================================================== */
 #include "standardlib.h"
-#include "constant.h"
 #include "shared.h"
 
 

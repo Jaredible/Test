@@ -10,7 +10,6 @@
 #include <stdint.h>     //for uint32_t
 #include <string.h>     //str function
 #include <unistd.h>     //standard symbolic constants and types
-#include "helper.h"
 #include "linklist.h"
 
 
@@ -165,6 +164,15 @@ bool isInList(List *l, int key)
     }      
 	
     return true;
+}
+
+char *strduplicate(const char *src) 
+{
+	size_t len = strlen(src) + 1;       // String plus '\0'
+	char *dst = malloc(len);            // Allocate space
+	if (dst == NULL) return NULL;       // No memory
+	memcpy (dst, src, len);             // Copy the block
+	return dst;                         // Return the new string
 }
 
 
