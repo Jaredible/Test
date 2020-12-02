@@ -82,7 +82,7 @@ void initPCB(ProcessControlBlock *pcb, int index, pid_t pid);
 MAIN
 ==================================================================================================== */
 
-int request_scheme = 1;
+int request_scheme = 0;
 
 int main(int argc, char *argv[])
 {
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
 			isDisplayTerminal = true;
 			break;
 		case 'm':
-			request_scheme = atoi(optarg);
+			request_scheme = atoi(optarg) - 1;
 			break;
 		default:
 			fprintf(stderr, "%s: please use \"-h\" option for more info.\n", exe_name);
