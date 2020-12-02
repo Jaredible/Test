@@ -7,7 +7,6 @@
 #ifndef MY_SHARED_H
 #define MY_SHARED_H
 #include <stdbool.h>
-#include "constant.h"
 
 /* File related constant */
 #define BUFFER_LENGTH 4096
