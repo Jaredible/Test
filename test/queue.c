@@ -10,7 +10,6 @@
 #include <stdint.h>     //for uint32_t
 #include <string.h>     //str function
 #include <unistd.h>     //standard symbolic constants and types
-#include "helper.h"
 #include "queue.h"
 
 
