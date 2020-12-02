@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
 					sprintf(exec_index, "%d", last_index);
 					char buf[BUFFER_LENGTH];
 					sprintf(buf, "%d", request_scheme);
-					int exect_status = execl("./user", "user", exec_index, request_scheme, (char*) NULL);
+					int exect_status = execl("./user", "user", exec_index, buf, (char*) NULL);
 					if (exect_status == -1)
 					{
 						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", exe_name, last_index);

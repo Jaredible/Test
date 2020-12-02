@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 				address = rand() % 32768 + 0;
 				request_page = address >> 10;
 				memory_reference++;
-			} else {
+			} else if (request_scheme == 1) {
 				double weights[32];
 				int i, j, p, r;
 				double sum;
