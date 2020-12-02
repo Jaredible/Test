@@ -15,7 +15,7 @@
 
 /* Process related constant */
 //Note (Warning): MAX_PROCESS should not be greater than 18 or 28 (depend on your setting)
-#define TERMINATION_TIME 20
+#define TERMINATION_TIME 5
 #define MAX_PROCESS 18
 #define TOTAL_PROCESS 100
 
