@@ -103,6 +103,7 @@ int main(int argc, char *argv[])
 				
 				address = (p << 10) + (rand() % 1024);
 				request_page = p;
+				memory_reference++;
 			}
 		}
 		else
