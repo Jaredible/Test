@@ -89,7 +89,6 @@ void semaRelease(int sem_index);
 int incShmclock(int increment);
 
 void initPCBT(ProcessControlBlock *pcbt);
-char *getPCBT(ProcessControlBlock *pcbt);
 void initPCB(ProcessControlBlock *pcb, int index, pid_t pid);
 /* -------------------------------------------------- */
 
@@ -891,31 +890,6 @@ void initPCBT(ProcessControlBlock *pcbt)
 	}
 }
 
-/* ====================================================================================================
-* Function    :  getPCBT()
-* Definition  :  Returns a string representation of the PCBT.
-* Parameter   :  Struct ProcessControlBlock Table.
-* Return      :  Char pointer.
-==================================================================================================== */
-char *getPCBT(ProcessControlBlock *pcbt)
-{
-	int i;
-	char buf[4096];
-
-	sprintf(buf, "PCBT: ");
-	for (i = 0; i < MAX_PROCESS; i++)
-	{
-		sprintf(buf, "%s(%d| %d)", buf, pcbt[i].pidIndex, pcbt[i].actualPid);
-
-		if (i < MAX_PROCESS - 1)
-		{
-			sprintf(buf, "%s, ", buf);
-		}
-	}
-	sprintf(buf, "%s\n", buf);
-
-	return strduplicate(buf);
-}
 
 /* ====================================================================================================
 * Function    :  initPCB()
