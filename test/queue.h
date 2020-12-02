@@ -29,7 +29,6 @@ void enQueue(Queue* q, int index);
 QNode *deQueue(Queue *q);
 bool isQueueEmpty(Queue *q);
 int getQueueCount(Queue *q);
-char *getQueue(const Queue *q);
 
 #endif
 

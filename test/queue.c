@@ -133,31 +133,4 @@ int getQueueCount(Queue *q)
 }
 
 
-/* ====================================================================================================
-* Function    :  getQueue()
-* Definition  :  Returns a string representation of the linked list.
-* Parameter   :  Struct Queue.
-* Return      :  Char pointer.
-==================================================================================================== */
-char *getQueue(const Queue *q)
-{
-	char buf[4096];
-	QNode next;
-	next.next = q->front;
-
-	sprintf(buf, "Queue: ");
-	while(next.next != NULL)
-	{
-		sprintf(buf, "%s%d", buf, next.next->index);
-		
-		next.next = (next.next->next != NULL) ? next.next->next : NULL;
-		if(next.next != NULL)
-		{
-			sprintf(buf, "%s, ", buf);
-		}
-	}
-	sprintf(buf, "%s\n", buf);
-
-	return strduplicate(buf);
-}
 
