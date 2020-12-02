@@ -24,7 +24,7 @@
 static FILE *fpw = NULL;
 static char *exe_name;
 static int percentage = 0;
-static char log_file[256] = "fifolog.dat";
+static char log_file[256] = "output.log";
 static char isDebugMode = false;
 static char isDisplayTerminal = false;
 static key_t key;
