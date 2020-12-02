@@ -81,6 +81,9 @@ void initPCB(ProcessControlBlock *pcb, int index, pid_t pid);
 /* ====================================================================================================
 MAIN
 ==================================================================================================== */
+
+int request_scheme = 1;
+
 int main(int argc, char *argv[])
 {
 	/* =====Initialize resources===== */
@@ -90,7 +93,7 @@ int main(int argc, char *argv[])
 	//--------------------------------------------------
 	/* =====Options===== */
 	int opt;
-	while ((opt = getopt(argc, argv, "hl:dta:")) != -1)
+	while ((opt = getopt(argc, argv, "hl:dtm:")) != -1)
 	{
 		switch (opt)
 		{
@@ -116,6 +119,9 @@ int main(int argc, char *argv[])
 			break;
 		case 't':
 			isDisplayTerminal = true;
+			break;
+		case 'm':
+			request_scheme = atoi(optarg);
 			break;
 		default:
 			fprintf(stderr, "%s: please use \"-h\" option for more info.\n", exe_name);
@@ -297,7 +303,9 @@ int main(int argc, char *argv[])
 					//Replaces the current running process with a new process (user)
 					char exec_index[BUFFER_LENGTH];
 					sprintf(exec_index, "%d", last_index);
-					int exect_status = execl("./user", "./user", exec_index, NULL);
+					char buf[BUFFER_LENGTH];
+					sprintf(buf, "%d", request_scheme);
+					int exect_status = execl("./user", "user", exec_index, request_scheme, (char*) NULL);
 					if (exect_status == -1)
 					{
 						fprintf(stderr, "%s (Child) ERROR: execl fail to execute at index [%d]! Exiting...\n", exe_name, last_index);

@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
 	exe_name = argv[0];
 	exe_index = atoi(argv[1]);
 	srand(getpid());
+	int request_scheme = atoi(argv[2]);
 
 
 	//--------------------------------------------------
@@ -73,9 +74,36 @@ int main(int argc, char *argv[])
 		if(memory_reference <= 1000)
 		{
 			//- Requesting Memory -//
-			address = rand() % 32768 + 0;
-			request_page = address >> 10;
-			memory_reference++;
+			if (request_scheme == 0) {
+				address = rand() % 32768 + 0;
+				request_page = address >> 10;
+				memory_reference++;
+			} else {
+				double weights[32];
+				int i, j, p, r;
+				double sum;
+
+				for (i = 0; i < 32; i++)
+					weights[i] = 0;
+
+				for (i = 0; i < 32; i++) {
+					sum = 0;
+					for (j = 0; j <= i; j++)
+						sum += 1 / (double) (j + 1);
+					weights[i] = sum;
+				}
+
+				r = rand() % ((int) weights[32 - 1] + 1);
+
+				for (i = 0; i < 32; i++)
+					if (weights[i] > r) {
+						p = i;
+						break;
+					}
+				
+				address = (p << 10) + (rand() % 1024);
+				request_page = p;
+			}
 		}
 		else
 		{
