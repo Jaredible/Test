@@ -1,0 +1,4 @@
+#!/bin/ksh
+
+myname=`who am i | cut -f 1 -d\ `
+echo "Hello $myname"

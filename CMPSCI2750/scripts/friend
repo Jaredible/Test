@@ -1,0 +1,19 @@
+#!/bin/bash
+
+trap "echo Aborting $0 ; exit 1" 2 15
+
+friend=${1-xyz}
+echo ${friend}
+
+while :
+do
+    who | grep ${friend}
+    if [ $? -eq 0 ]
+    then
+        echo "${friend} is logged in"
+        exit 0
+    else
+	echo "Will check again"
+	sleep 10
+    fi
+done

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+declare -i a b;
+a=10; b=5
+b+=$a;
+#b="mark"
+echo $b
+declare -r b;   ## readonly
+b=0
+unset b
+
+name="John"; last="Doe";
+echo ${#name}    ## length of $name is 4
+name+=$last      ## name is johndoe
+echo $name

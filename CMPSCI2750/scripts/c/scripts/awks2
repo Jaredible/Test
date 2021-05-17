@@ -1,0 +1,2 @@
+BEGIN			{ FS = ":"; printf "%-10s%s\n", "uname", "Actual Name" }
+( $NF != "/bin/csh" )	{ printf "%-10s%s\n", $1, $5 }

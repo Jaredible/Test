@@ -1,0 +1,23 @@
+#!/bin/ksh
+
+# Self contained phone book
+# Illustrates the use of executing multiple commands in current shell
+# as well as using a "here" document as input to grep.
+
+# Do not forget to terminate the last command inside the command group by ;
+
+[ $# -eq 0 ] && { echo "usage: $0 name" ; exit 1 ; }
+
+grep -i -s "$*" <<EOF
+dial-a-joke	(636) 976-3838
+dial-a-prayer	(314) 246-4200
+dial santa	(636) 976-3636
+dow jones report (212) 976-4141
+EOF
+status=$?
+[ $status -eq 1 ] &&
+    { echo "$0: No one named \"$*\" in the phone book" ; exit 1 ; }
+
+# Normal termination
+
+exit 0

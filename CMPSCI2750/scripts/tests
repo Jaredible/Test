@@ -1,0 +1,26 @@
+#!/bin/bash
+
+while getopts abcdf:h OPTNAME
+do
+    case $OPTNAME in
+    a|b|c)  echo Option ${OPTNAME} received
+        ;;
+    d)  set -x
+        ;;
+    f)  echo Option f received
+        echo Optional argument is: $OPTARG
+        ;;
+    h | \?)  echo usage: $0 [-abc] [-f filename] parameter1 parameter2 ...
+        echo Options are:
+        echo "    -d  :  Turn debugging on"
+        echo "    -h  :  Print help (this message)"
+        exit 1
+        ;;
+    esac
+done
+
+#shift `expr $OPTIND - 1`
+shift $((OPTIND - 1))
+
+echo The number of parameters is: $#
+echo The parameters are: $*

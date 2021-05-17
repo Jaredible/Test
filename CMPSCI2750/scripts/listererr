@@ -1,0 +1,13 @@
+#!/bin/bash
+targets="$*"
+for file in $targets
+do
+	echo -n "$file "
+	if [[ -e $file && -r $file ]]
+	then
+		wc -l < $file
+	else
+		echo ": File does not exist"
+		break
+	fi
+done

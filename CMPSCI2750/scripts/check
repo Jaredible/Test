@@ -1,0 +1,13 @@
+#!/bin/bash
+
+trap "echo Stopping the check ; exit 1" 2 15
+
+while :
+do
+    who | grep -sq $1 && break
+    echo "Test after 5 sec."
+    sleep 5
+done
+
+echo "$1 is logged in now"
+exit 0

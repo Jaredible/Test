@@ -1,0 +1,21 @@
+#!/bin/ksh
+
+if [ $# -eq 0 ]
+then
+    echo "usage: $0 name"
+    exit 1
+fi
+
+grep -i -s "$*" phone-book
+status=$?
+if [ $status -eq 1 ]
+then
+    echo "No one named \"$*\" in the phone book"
+    exit 1
+elif [ $status -eq 2 ]
+then
+    echo "Missing phone book"
+    exit 1
+fi
+
+exit 0

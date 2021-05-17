@@ -1,0 +1,17 @@
+#!/bin/bash
+
+hello()
+{
+    if [ $# -eq 0 ]
+    then
+	echo "Hello world"
+	return
+    fi
+
+    echo "Hello $* from $0"
+    return
+}
+
+hello
+hello John
+hello ${1:-Class}

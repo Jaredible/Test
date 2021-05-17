@@ -1,0 +1,7 @@
+BEGIN	{ FS=":";
+	  printf "%-30s%6s%10s%10s\n", "Name", "Hours", "Rate", "Total";
+	  total = 0 }
+/Bush/	{ pay = $2 * $3;
+	  total += pay;
+	  printf "%-30s%6d%10.2f%10.2f\n", $1, $2, $3, pay }
+END	{ printf "Total payroll: %10.2f\n", total }

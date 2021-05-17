@@ -1,0 +1,7 @@
+#!/bin/ksh
+
+echo $$
+echo "Hello $myname"
+myname=Sanjiv
+echo "Hello $myname"
+exit 0

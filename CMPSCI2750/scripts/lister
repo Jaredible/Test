@@ -1,0 +1,7 @@
+#!/bin/bash
+targets="$*"
+for file in $targets
+do
+	echo -n "$file "
+	wc -l < $file
+done

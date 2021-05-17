@@ -1,0 +1,19 @@
+CC	= gcc		# The C compiler
+CFLAGS	= -g		# Enable debugging by default
+TARGET	= math
+OBJS	= main.o square.o cube.o
+
+$(TARGET): $(OBJS)
+	$(CC) -o $(TARGET) $(OBJS)
+
+main.o:	main.c mymath.h
+	$(CC) $(CFLAGS) -c main.c
+
+square.o: square.c mymath.h
+	$(CC) $(CFLAGS) -c square.c
+
+cube.o:	cube.c mymath.h
+	$(CC) $(CFLAGS) -c cube.c
+
+clean:
+	/bin/rm -f *.o *~ $(TARGET)

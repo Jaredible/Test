@@ -1,0 +1,11 @@
+#define IN
+#define OUT
+
+
+int square (
+    IN	int x		// Number to square
+    );
+
+int cube (
+    INT	int x		// Number to cube
+    );

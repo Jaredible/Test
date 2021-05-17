@@ -1,0 +1,24 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]
+then
+    echo "usage: $0 number"
+    echo "$0 creates a number padded with 0's making it at least three characters"
+    exit 1
+fi
+
+counter=$1
+
+if [ $counter -lt 10 ]
+then
+    number=00$counter
+elif [ $counter -lt 100 ]
+then
+    number=0$counter
+else
+    number=$counter
+fi
+
+echo "Original: $counter   Padded: $number"
+#printf "Original: %d   Padded: %d\n" $counter $number
+

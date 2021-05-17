@@ -1,0 +1,36 @@
+head	1.1;
+access;
+symbols;
+locks
+	bhatias:1.1; strict;
+comment	@% @;
+
+
+1.1
+date	2012.02.23.23.58.55;	author bhatias;	state Exp;
+branches;
+next	;
+
+
+desc
+@Document to print hello.
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@\documentclass[12pt]{article}
+
+% Printing Hello world
+
+% $Author$
+% $Log$
+
+\begin{document}
+\noindent
+Hello world
+\end{document}
+@

@@ -1,0 +1,12 @@
+#!/bin/bash
+cmd="$1"
+path=$(echo $PATH | tr ":" " ")
+for dir in $path
+	do
+		if [[ -x "$dir/$cmd" ]]
+		then
+			echo "Found: $dir/$cmd"
+			exit 0
+		fi
+	done
+echo "$cmd not on $PATH"

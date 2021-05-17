@@ -1,0 +1,5 @@
+sed -n 's/^west/north/p'
+
+sed '5,/north/s/$/dog/'
+
+sed -n '/[Dd]akota/\*V\*/p'

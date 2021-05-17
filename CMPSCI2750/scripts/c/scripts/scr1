@@ -1,0 +1,5 @@
+#!/bin/ksh
+
+echo "$0: Script to say Hello"
+name=$1
+( [ $# -eq 0 ] && echo "Hello world" ) || echo "Hello $name"

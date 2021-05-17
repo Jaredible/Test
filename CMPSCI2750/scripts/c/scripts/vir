@@ -1,0 +1,77 @@
+#!/bin/ksh
+
+PATH=/bin
+
+# Function to issue the help message
+
+issue_help ()
+{
+    echo "usage: $0 [-c <command>] [-hlR] <filename>"
+    echo "    c <command>    Enter $0 and issue the given vi command"
+    echo "    h              Issue help message (this message)"
+    echo "    l              Run in lisp mode to edit lisp programs"
+    echo "    R              Read-only mode; files cannot be changed"
+    echo "    x              Supply a key to encrypt or decrypt file"
+    exit 1
+}
+
+# Parse options
+
+OPTIONS=
+while getopts c:hlRx OPTNAME
+do
+    case ${OPTNAME} in
+    c) OPTIONS="${OPTIONS} -c ${OPTARG}"
+       ;;
+    h) issue_help
+       ;;
+    l) OPTIONS="${OPTIONS} -l"
+       ;;
+    R) OPTIONS="${OPTIONS} -R"
+       ;;
+    x) OPTIONS="${OPTIONS} -x"
+       ;;
+    esac
+done
+
+shift `expr $OPTIND - 1`
+
+# Check that there is at least one file name specified
+
+if [ $# -eq 0 ]
+then
+    issue_help
+fi
+
+# Get file name and start editing
+
+filename=$1
+
+# Check if there is a file by the name specified
+
+if [ -f ${filename} ]
+then
+    # A file exists; check if there are previous versions of the file
+
+    if [ -f ${filename}\;* ]
+    then
+        # There are previous versions; determine the largest and increment
+        # it by 1
+
+        high=`ls -1 ${filename}\;* | cut -d\; -f2 | sort -nr | head -1`
+        high=`expr ${high} + 1`
+        newfile=${filename}\;${high}
+        cp -p ${filename} ${newfile}
+        lastfile=${newfile}
+    else
+        lastfile=${filename}\;1
+        cp -p ${filename} ${lastfile}
+    fi
+fi
+
+vi ${OPTIONS} ${filename}
+
+if ( [ ${lastfile?} ] && diff ${filename} ${lastfile} ) 2> /dev/null 1>&2
+then
+    rm ${lastfile}
+fi
