@@ -1,4 +1,0 @@
-/^$/			{print "Blank line"}
-/^[a-zA-Z][a-zA-Z]*/	{print "Line with alphabets"}
-/^[0-9][0-9]*/		{print "Line with just numbers"}
-/^[a-zA-Z][a-zA-Z]*/	{print "Line with alphabets a second time"}
